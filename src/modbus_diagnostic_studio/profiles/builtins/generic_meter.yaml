@@ -1,11 +1,27 @@
-﻿profile_id: generic_meter
+profile_id: generic_meter
 name: Generic Modbus Meter
 status: generic
-description: Generic configurable Modbus meter profile.
+description: Minimal generic configurable Modbus meter profile.
 default_function: 3
 byte_order: big
 word_order: normal
 base_addressing: zero_based
 registers_per_value: 2
 max_registers_per_request: 64
-registers: []
+registers:
+  - variable: voltage_l1_v
+    address: 0
+    type: float32
+    unit: V
+  - variable: current_l1_a
+    address: 2
+    type: float32
+    unit: A
+  - variable: power_total_w
+    address: 4
+    type: float32
+    unit: W
+  - variable: frequency_hz
+    address: 6
+    type: float32
+    unit: Hz

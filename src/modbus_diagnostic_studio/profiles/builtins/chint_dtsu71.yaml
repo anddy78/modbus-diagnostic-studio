@@ -1,11 +1,131 @@
-﻿profile_id: chint_dtsu71
+profile_id: chint_dtsu71
 name: Chint DTSU71
-status: placeholder
-description: Placeholder profile. To be completed from validated reference data.
+status: observed_from_huawei_smartlogger
+description: Observed/non-official DTSU71 profile from Huawei SmartLogger traffic; register names are conservative and should be verified against field data.
 default_function: 3
 byte_order: big
 word_order: normal
 base_addressing: zero_based
 registers_per_value: 2
 max_registers_per_request: 66
-registers: []
+registers:
+  - variable: current_l1_a
+    address: 2102
+    type: float32
+    unit: A
+  - variable: current_l2_a
+    address: 2104
+    type: float32
+    unit: A
+  - variable: current_l3_a
+    address: 2106
+    type: float32
+    unit: A
+  - variable: voltage_ln_l1_v
+    address: 2108
+    type: float32
+    unit: V
+  - variable: voltage_ln_l2_v
+    address: 2110
+    type: float32
+    unit: V
+  - variable: voltage_ln_l3_v
+    address: 2112
+    type: float32
+    unit: V
+  - variable: voltage_ln_avg_v
+    address: 2114
+    type: float32
+    unit: V
+  - variable: voltage_ll_l12_v
+    address: 2116
+    type: float32
+    unit: V
+  - variable: voltage_ll_l23_v
+    address: 2118
+    type: float32
+    unit: V
+  - variable: voltage_ll_l31_v
+    address: 2120
+    type: float32
+    unit: V
+  - variable: voltage_ll_avg_v
+    address: 2122
+    type: float32
+    unit: V
+  - variable: frequency_hz
+    address: 2124
+    type: float32
+    unit: Hz
+  - variable: power_total_w
+    address: 2126
+    type: float32
+    unit: W
+  - variable: power_l1_w
+    address: 2128
+    type: float32
+    unit: W
+  - variable: power_l2_w
+    address: 2130
+    type: float32
+    unit: W
+  - variable: power_l3_w
+    address: 2132
+    type: float32
+    unit: W
+  - variable: reactive_total_var
+    address: 2134
+    type: float32
+    unit: var
+  - variable: reactive_l1_var
+    address: 2136
+    type: float32
+    unit: var
+  - variable: reactive_l2_var
+    address: 2138
+    type: float32
+    unit: var
+  - variable: reactive_l3_var
+    address: 2140
+    type: float32
+    unit: var
+  - variable: apparent_total_va
+    address: 2142
+    type: float32
+    unit: VA
+  - variable: active_energy_net_total_kwh
+    address: 2158
+    type: float32
+    unit: kWh
+  - variable: active_energy_import_total_kwh
+    address: 2166
+    type: float32
+    unit: kWh
+  - variable: active_energy_export_total_kwh
+    address: 2174
+    type: float32
+    unit: kWh
+  - variable: active_energy_aux_net_total
+    address: 2182
+    type: float32
+    unit: kWh
+  - variable: active_energy_aux_positive_total
+    address: 2190
+    type: float32
+    unit: kWh
+  - variable: active_energy_aux_negative_total
+    address: 2198
+    type: float32
+    unit: kWh
+  - variable: reactive_energy_net_total_kvarh
+    address: 2206
+    type: float32
+    unit: kvarh
+  - variable: reactive_energy_positive_total_kvarh
+    address: 2214
+    type: float32
+    unit: kvarh
+  - variable: reactive_energy_negative_total_kvarh
+    address: 2222
+    type: float32
+    unit: kvarh
