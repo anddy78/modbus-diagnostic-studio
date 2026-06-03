@@ -1,0 +1,4 @@
+﻿"""Application state.
+
+Implementation pending.
+"""

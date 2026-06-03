@@ -1,0 +1,10 @@
+pyside6>=6.7
+pyserial>=3.5
+pymodbus>=3.6
+pydantic>=2.0
+pyyaml>=6.0
+
+[dev]
+pytest>=8.0
+ruff>=0.5
+pyinstaller>=6.0

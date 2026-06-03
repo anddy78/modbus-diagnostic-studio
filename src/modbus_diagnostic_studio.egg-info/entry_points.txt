@@ -1,0 +1,2 @@
+[console_scripts]
+modbus-diagnostic-studio = modbus_diagnostic_studio.main:main

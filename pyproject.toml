@@ -1,0 +1,35 @@
+[project]
+name = "modbus-diagnostic-studio"
+version = "0.1.0"
+description = "Self-contained Windows desktop tool for industrial Modbus diagnostics."
+requires-python = ">=3.11"
+dependencies = [
+    "pyside6>=6.7",
+    "pyserial>=3.5",
+    "pymodbus>=3.6",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+    "pyinstaller>=6.0",
+]
+
+[project.scripts]
+modbus-diagnostic-studio = "modbus_diagnostic_studio.main:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

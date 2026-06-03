@@ -1,0 +1,4 @@
+﻿"""Slave datastore.
+
+Implementation pending.
+"""
