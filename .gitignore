@@ -24,3 +24,6 @@ Thumbs.db
 
 .vscode/
 .idea/
+
+*.egg-info/
+src/*.egg-info/
