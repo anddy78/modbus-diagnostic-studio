@@ -1,0 +1,23 @@
+profile_id: smartlogger_chint_dtsu71
+name: Huawei SmartLogger -> Chint DTSU71
+description: Fingerprint based on observed SmartLogger polling against Chint DTSU71.
+master_role: huawei_smartlogger
+slave_role: chint_dtsu71
+expected_slave_ids:
+  - 11
+expected_functions:
+  - 3
+expected_requests:
+  - address: 2102
+    quantity: 42
+    function_code: 3
+    interval_min_ms: 100
+    interval_max_ms: 500
+    description: Fast instantaneous block observed from SmartLogger DTSU71 polling
+  - address: 2158
+    quantity: 66
+    function_code: 3
+    interval_min_ms: 5000
+    interval_max_ms: 15000
+    description: Slow energy block observed from SmartLogger DTSU71 polling
+linked_register_profile: chint_dtsu71

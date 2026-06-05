@@ -1,0 +1,9 @@
+profile_id: generic_modbus_rtu
+name: Generic Modbus RTU
+description: Generic passive communication profile for Modbus RTU traffic with FC03/FC04.
+expected_functions:
+  - 3
+  - 4
+expected_slave_ids: []
+expected_requests: []
+linked_register_profile: null

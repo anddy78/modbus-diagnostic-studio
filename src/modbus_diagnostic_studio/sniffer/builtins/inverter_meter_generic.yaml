@@ -1,0 +1,11 @@
+profile_id: inverter_meter_generic
+name: Inverter -> Generic Meter
+description: Generic inverter-to-meter communication profile without fixed request blocks.
+master_role: inverter
+slave_role: generic_meter
+expected_functions:
+  - 3
+  - 4
+expected_slave_ids: []
+expected_requests: []
+linked_register_profile: null

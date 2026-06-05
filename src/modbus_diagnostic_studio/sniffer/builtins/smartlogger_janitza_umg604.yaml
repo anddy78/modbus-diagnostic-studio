@@ -1,0 +1,15 @@
+profile_id: smartlogger_janitza_umg604
+name: Huawei SmartLogger -> Janitza UMG604
+description: Fingerprint based on observed SmartLogger polling against Janitza UMG604.
+master_role: huawei_smartlogger
+slave_role: janitza_umg604
+expected_slave_ids:
+  - 11
+expected_functions:
+  - 3
+expected_requests:
+  - address: 19000
+    quantity: 110
+    function_code: 3
+    description: Observed SmartLogger Janitza UMG604 block
+linked_register_profile: janitza_umg604
