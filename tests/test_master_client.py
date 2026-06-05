@@ -468,3 +468,43 @@ def test_read_coils_all_true() -> None:
     client = ModbusMasterClient(FakeTransport(response))
     result = client.read_coils(slave_id=1, address=0, quantity=8)
     assert result == [True] * 8
+
+
+@pytest.mark.parametrize(
+    "method_name, function_code",
+    [
+        ("read_coils", 0x01),
+        ("read_discrete_inputs", 0x02),
+    ],
+)
+def test_bit_reads_reject_byte_count_smaller_than_expected(
+    method_name: str,
+    function_code: int,
+) -> None:
+    response = append_crc(bytes([0x01, function_code, 0x01, 0xFF]))
+    client = ModbusMasterClient(FakeTransport(response))
+
+    method = getattr(client, method_name)
+
+    with pytest.raises(RuntimeError, match="byte count too small"):
+        method(slave_id=1, address=0, quantity=9)
+
+
+@pytest.mark.parametrize(
+    "method_name, function_code",
+    [
+        ("read_coils", 0x01),
+        ("read_discrete_inputs", 0x02),
+    ],
+)
+def test_bit_reads_reject_length_mismatch(
+    method_name: str,
+    function_code: int,
+) -> None:
+    response = append_crc(bytes([0x01, function_code, 0x02, 0xFF]))
+    client = ModbusMasterClient(FakeTransport(response))
+
+    method = getattr(client, method_name)
+
+    with pytest.raises(RuntimeError, match="length mismatch"):
+        method(slave_id=1, address=0, quantity=8)

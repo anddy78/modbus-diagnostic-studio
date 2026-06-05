@@ -87,6 +87,20 @@ class ModbusMasterClient:
             raise RuntimeError("Modbus bit read response function code mismatch")
 
         byte_count = response[2]
+        expected_byte_count = (quantity + 7) // 8
+        if byte_count < expected_byte_count:
+            raise RuntimeError(
+                f"Modbus bit read response byte count too small: "
+                f"got {byte_count}, expected at least {expected_byte_count}"
+            )
+
+        expected_response_length = 3 + byte_count + 2
+        if len(response) != expected_response_length:
+            raise RuntimeError(
+                f"Modbus bit read response length mismatch: "
+                f"expected {expected_response_length} bytes, got {len(response)}"
+            )
+
         data = response[3 : 3 + byte_count]
         if len(data) != byte_count:
             raise RuntimeError(

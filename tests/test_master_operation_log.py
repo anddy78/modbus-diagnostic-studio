@@ -94,6 +94,12 @@ class TestWriteLogCsv:
             write_log_csv(path, [_entry()])
             assert path.exists()
 
+    def test_rejects_directory_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir)
+            with pytest.raises(ValueError, match="directory"):
+                write_log_csv(path, [_entry()])
+
     def test_all_fieldnames_present(self) -> None:
         from modbus_diagnostic_studio.master.operation_log import LOG_FIELDNAMES
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
@@ -135,6 +141,12 @@ class TestWriteLogJsonl:
             path = Path(tmpdir) / "subdir" / "log.jsonl"
             write_log_jsonl(path, [_entry()])
             assert path.exists()
+
+    def test_rejects_directory_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir)
+            with pytest.raises(ValueError, match="directory"):
+                write_log_jsonl(path, [_entry()])
 
 
 def test_max_log_entries_constant() -> None:

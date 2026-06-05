@@ -55,8 +55,7 @@ class MasterOperationLogEntry:
 
 def write_log_csv(path: str | Path, entries: list[MasterOperationLogEntry]) -> None:
     """Write operation log entries to a CSV file."""
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = _prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=LOG_FIELDNAMES)
         writer.writeheader()
@@ -66,9 +65,16 @@ def write_log_csv(path: str | Path, entries: list[MasterOperationLogEntry]) -> N
 
 def write_log_jsonl(path: str | Path, entries: list[MasterOperationLogEntry]) -> None:
     """Write operation log entries to a JSONL file."""
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = _prepare_output_path(path)
     with output_path.open("w", encoding="utf-8", newline="") as handle:
         for entry in entries:
             handle.write(json.dumps(entry.to_dict(), ensure_ascii=False))
             handle.write("\n")
+
+
+def _prepare_output_path(path: str | Path) -> Path:
+    output_path = Path(path)
+    if output_path.exists() and output_path.is_dir():
+        raise ValueError(f"Operation log path is a directory: {output_path}")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    return output_path

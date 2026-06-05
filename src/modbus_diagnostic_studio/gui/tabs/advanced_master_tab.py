@@ -1045,6 +1045,8 @@ class AdvancedMasterTab(QWidget):
         )
         if len(self._operation_log) >= MAX_LOG_ENTRIES:
             self._operation_log.pop(0)
+            if self.log_table.rowCount() > 0:
+                self.log_table.removeRow(0)
         self._operation_log.append(entry)
         self._append_log_row(entry)
 
@@ -1063,6 +1065,7 @@ class AdvancedMasterTab(QWidget):
             entry.message,
         ]):
             self.log_table.setItem(row, col, QTableWidgetItem(val))
+        self.log_table.scrollToBottom()
 
     def _clear_log(self) -> None:
         self._operation_log.clear()
