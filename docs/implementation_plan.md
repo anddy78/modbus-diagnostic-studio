@@ -71,7 +71,7 @@ Scope:
 - Safety checks ensuring sniffer code has no send/write APIs and never calls `serial.write()`.
 
 ## Phase 4
-Implement PySide6 GUI in focused increments.
+Implement the first user-facing GUI layers and product-level UX.
 
 ### Phase 4A
 Implement GUI minima Connection + Decoder.
@@ -104,11 +104,48 @@ Scope:
 - Preliminary diagnostic conclusions.
 - Exportable diagnostic report.
 
+### Phase 4D
+Implement theme selector and friendly meter layer.
+
+Scope:
+- System, Light and Dark theme selection.
+- Meter-centric guided workflow.
+- Friendly electrical summary values.
+- Use existing register profiles for common meters.
+- Add single-read and continuous-read meter flows.
+
+### Phase 4E
+Implement advanced master workflows.
+
+Scope:
+- Manual FC01, FC02, FC03 and FC04 reads.
+- Raw register viewing and decoding.
+- Multiple data formats: uint16, int16, uint32, int32, float32, word swap, hex and binary.
+- Continuous active reads.
+- Clear active-mode warnings and explicit confirmation for future writes.
+
 ## Phase 5
-Implement Slave/Simulator.
+Implement slave and simulator workflows.
+
+### Phase 5A
+Implement a simulator-oriented slave shell.
+
+Scope:
+- Simulate any slave role.
+- Edit individual registers and register ranges.
+- Support holding registers and input registers first.
+- Load and save simulator configuration.
+
+### Phase 5B
+Extend slave simulator data models and profile-backed presets.
+
+Scope:
+- Coils and discrete inputs later.
+- Profile-backed simulator presets for known meters.
+- Reuse register profiles where possible.
 
 ## Phase 6
 Expand GUI workflows after core diagnostic features are stable.
 
 ## Phase 7
-Implement Windows packaging.
+Implement Windows packaging and installer options.

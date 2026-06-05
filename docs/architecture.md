@@ -5,6 +5,11 @@ Status: draft.
 Primary decision:
 Build a self-contained Windows desktop app using Python + PySide6.
 
+Product direction:
+The app should grow into a complete Modbus diagnostic workbench with two deliberate layers:
+- friendly diagnostics for meter users and quick checks
+- advanced diagnostics for technicians who need raw registers, protocol functions and simulation
+
 Core principles:
 - GUI-independent Modbus core.
 - Passive sniffer must never transmit.
@@ -23,6 +28,8 @@ Core principles:
 - `sniffer/`: passive RTU capture, frame reconstruction, request/response matching, diagnostics and capture output.
 - `services/`: application state, event bus, sessions and reports.
 - `gui/`: PySide6 user interface only. GUI must call services/core modules and must not implement protocol logic directly.
+
+The GUI should also provide a theme selector with System, Light and Dark modes.
 
 ## Passive Sniffer Diagnostic
 
@@ -70,6 +77,29 @@ Hard rules:
 - The UI must clearly show passive mode status.
 - The same COM port must not be shared between passive sniffer and active master/slave modes.
 - Software passivity does not prove electrical passivity; wiring and adapter notes belong in hardware documentation.
+
+## Friendly And Advanced Layers
+
+The user experience should be split into two explicit layers rather than one flat control surface.
+
+Friendly layer:
+- meter selection
+- serial connection settings
+- guided single reads and continuous reads
+- summary electrical values
+- fast diagnostics for common devices
+
+Advanced layer:
+- raw register views
+- manual FC01, FC02, FC03 and FC04 operations
+- simulator workflows
+- register editing and range editing
+- protocol-level inspection
+
+The friendly layer should favor quick, low-friction workflows.
+The advanced layer should keep every active operation explicit.
+
+Future write operations must be clearly marked as active actions and require explicit user confirmation.
 
 ## Register Profiles
 
@@ -128,6 +158,20 @@ Communication profiles should support:
   - max timeout rate percent
   - max response latency ms
 
+## Meter Workflows
+
+Meter-oriented workflows should reuse the existing register profiles and present friendly electrical names and units.
+
+These workflows should emphasize:
+- selected meter model
+- selected COM settings
+- slave ID
+- single read
+- continuous read
+- summary values such as voltage, current, power and frequency
+
+This layer is for quick diagnosis and should stay approachable for non-expert users.
+
 ## Fingerprint-Based Profile Suggestions
 
 The sniffer should be able to suggest a likely communication profile by comparing observed traffic against known fingerprints:
@@ -141,3 +185,14 @@ The sniffer should be able to suggest a likely communication profile by comparin
 
 Example:
 If FC03 address 2102 quantity 42 appears every 180-200 ms and FC03 address 2158 quantity 66 appears around every 10 s, the diagnostic engine may suggest Huawei SmartLogger -> Chint DTSU71.
+
+## Advanced Master And Slave Simulation
+
+The advanced side of the app should eventually include:
+- a manual master panel for FC01, FC02, FC03 and FC04
+- a simulator-oriented slave panel
+- raw register editing
+- range editing
+- support for holding registers and input registers first
+- coils and discrete inputs in later phases
+- profile-backed simulator presets for known meters

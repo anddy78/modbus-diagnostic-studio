@@ -1,21 +1,35 @@
-﻿# Modbus Diagnostic Studio
+# Modbus Diagnostic Studio
 
 Self-contained Windows desktop application for industrial Modbus diagnostics.
 
+## Product Direction
+
+Modbus Diagnostic Studio is evolving into a two-layer workbench:
+
+1. Friendly layer
+   - guided meter selection
+   - single and continuous reads
+   - summary electrical values
+   - quick diagnostics for common devices
+2. Advanced layer
+   - raw registers
+   - manual Modbus function access
+   - simulation
+   - expert-focused troubleshooting
+
+The theme selector will support `System`, `Light` and `Dark` modes.
+
 ## Goals
 
-- Modbus Master RTU
-- Modbus Master TCP
-- Modbus Slave RTU
-- Modbus Slave TCP
-- Passive RTU sniffer
+- Friendly meter diagnostics
+- Advanced Modbus master tools
+- Passive RTU sniffer diagnostics
 - Raw frame decoder
-- Live dashboard
 - Profile-based decoding
 - Meter simulation
 - Windows portable/installer packaging
 
-## Initial supported profiles
+## Initial Supported Profiles
 
 - Chint DTSU71
 - Eastron SDM630
@@ -36,6 +50,8 @@ Sniffer mode must never transmit.
 
 Passive sniffing must be visually distinct from active Master/Slave modes.
 
+Future Modbus write features will require explicit user confirmation and will remain clearly marked as active operations.
+
 ## Development on Windows
 
 Create virtual environment:
@@ -45,19 +61,24 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
+```
 
 Run validation:
 
-python -m compileall src tests
-pytest -q
+```powershell
+.\.venv\Scripts\python.exe -m compileall src tests
+.\.venv\Scripts\python.exe -m pytest -q
+```
 
 Run application entry point:
 
-python -m modbus_diagnostic_studio.main
-Packaging target
+```powershell
+.\.venv\Scripts\python.exe -m modbus_diagnostic_studio.main
+```
+
+## Packaging Target
 
 The final application must run as:
 
-ModbusDiagnosticStudio.exe
-
-or as a portable Windows folder containing the executable, profiles, config, logs and captures.
+- `ModbusDiagnosticStudio.exe`
+- or as a portable Windows folder containing the executable, profiles, config, logs and captures

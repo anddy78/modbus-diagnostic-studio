@@ -7,6 +7,11 @@ This is a NEW independent repository.
 Project goal:
 Build a self-contained Windows desktop application for industrial Modbus diagnostics.
 
+Product direction:
+Evolve into a complete Modbus diagnostic workbench with two clear layers:
+- a friendly layer for meter-centric diagnostics and guided workflows
+- an advanced layer for raw registers, protocol functions and simulation
+
 The existing repository `anddy78/modbus_meter_bridge` is only a technical reference.
 Do not extend it.
 Do not blindly copy code from it.
@@ -28,6 +33,12 @@ Preferred stack:
 - Passive Sniffer Diagnostic as a central operating mode
 - PyInstaller for packaging
 - pytest for tests
+
+UI direction:
+- include a theme selector with System, Light and Dark modes
+- keep passive and active modes visually distinct
+- make meter workflows approachable for non-expert users
+- keep advanced workflows explicit for technicians
 
 Acceptable secondary architecture:
 A local web GUI is acceptable only if explicitly approved.
@@ -70,6 +81,7 @@ Use:
 10. Do not expose network services beyond localhost unless explicitly requested.
 11. Do not commit secrets, API keys, private captures, client data or personal data.
 12. Do not implement large unrelated features.
+13. Future Modbus write features must require explicit user confirmation and remain clearly marked as active operations.
 
 ## Passive Sniffer Diagnostic
 
@@ -128,6 +140,11 @@ Sniffer safety requirements are absolute:
 - The same COM port must not be shared between sniffer and active master/slave modes.
 - Software passivity does not guarantee electrical passivity; hardware notes must be documented separately when relevant.
 
+Product layering:
+- Friendly layer: meter selection, guided reads, summary values and quick diagnostics.
+- Advanced layer: raw frames, Modbus function access, register-level inspection and simulation tools.
+- The friendly layer should stay approachable while the advanced layer remains explicit for experts.
+
 ## Communication profiles
 
 Communication profiles are distinct from register profiles.
@@ -166,6 +183,16 @@ Communication profiles should be able to define:
   - max CRC error rate percent
   - max timeout rate percent
   - max response latency ms
+
+## Theme and UX
+
+The application should support at least these theme choices:
+- System
+- Light
+- Dark
+
+Theme selection is a product-level setting, not a protocol concern.
+Keep the first-screen experience simple and clearly divided between friendly and advanced diagnostics.
 
 ## Development workflow
 
@@ -300,6 +327,7 @@ Initial supported features:
 - Profile-based register decoding
 - Passive Sniffer Diagnostic planning and safety rules
 - Communication profile planning for diagnostic fingerprinting
+- Friendly meter workflows and advanced Modbus workflows as separate UI layers
 
 Initial profiles:
 - Chint DTSU71
