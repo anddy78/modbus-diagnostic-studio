@@ -29,8 +29,11 @@ from modbus_diagnostic_studio.profiles.loader import (
     list_builtin_profiles,
     load_builtin_profile,
 )
+from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
 from modbus_diagnostic_studio.transports.rtu_transport import RtuTransport
 from modbus_diagnostic_studio.transports.serial_ports import list_serial_ports
+
+MASTER_READ_OWNER = "master_read_tab"
 
 
 @dataclass(frozen=True)
@@ -103,6 +106,9 @@ class MasterReadTab(QWidget):
         super().__init__()
         self._thread: QThread | None = None
         self._worker: MasterReadWorker | None = None
+        # TODO: inject an application-wide ModeManager from ApplicationState.
+        self._mode_manager = ModeManager()
+        self._reserved_port: str | None = None
 
         self.status_label = QLabel("Active master mode. A request is sent only when Read is pressed.")
 
@@ -206,16 +212,25 @@ class MasterReadTab(QWidget):
         if not port:
             self._set_error("No COM selected.")
             return
+        port = str(port)
+
+        try:
+            self._mode_manager.reserve(port, AppMode.MASTER_READ, MASTER_READ_OWNER)
+            self._reserved_port = port
+        except RuntimeError as exc:
+            self._set_error(str(exc))
+            return
 
         try:
             settings = SerialConnectionSettings(
-                port=str(port),
+                port=port,
                 baudrate=self.baudrate.value(),
                 parity=self.parity.currentText(),
                 stopbits=float(self.stopbits.currentText()),
                 timeout=self.timeout.value(),
             )
         except ValueError as exc:
+            self._release_reserved_port()
             self._set_error(f"Invalid settings: {exc}")
             return
 
@@ -245,10 +260,12 @@ class MasterReadTab(QWidget):
         self._populate_raw_table(result.start_address, result.registers)
         self._populate_decoded_table(result.start_address, result.registers)
         self.status_label.setText(f"Read OK: {len(result.registers)} register(s). Port closed.")
+        self._release_reserved_port()
 
     @Slot(str)
     def _handle_error(self, message: str) -> None:
         self._set_error(message)
+        self._release_reserved_port()
 
     @Slot()
     def _cleanup_worker(self) -> None:
@@ -258,6 +275,12 @@ class MasterReadTab(QWidget):
 
     def _set_error(self, message: str) -> None:
         self.status_label.setText(f"Error: {message}")
+
+    def _release_reserved_port(self) -> None:
+        if self._reserved_port is None:
+            return
+        self._mode_manager.release(self._reserved_port, MASTER_READ_OWNER)
+        self._reserved_port = None
 
     def _populate_raw_table(self, start_address: int, registers: list[int]) -> None:
         self.raw_table.setRowCount(len(registers))
