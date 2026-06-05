@@ -24,6 +24,8 @@ def test_profile_manager_tab_builds_and_lists_builtins(monkeypatch, tmp_path: Pa
     assert app is not None
     assert widget.device_profiles_table.rowCount() >= 3
     assert widget.register_profiles_table.rowCount() >= 1
+    assert widget.register_profiles_table.horizontalHeaderItem(4).text() == "Description"
+    assert widget.register_preview_table.horizontalHeaderItem(5).text() == "Description"
 
 
 def test_profile_manager_import_device_profile_file(monkeypatch, tmp_path: Path) -> None:
@@ -68,3 +70,75 @@ def test_profile_manager_import_device_profile_file(monkeypatch, tmp_path: Path)
         widget.device_profiles_table.item(row, 0).text() == "imported_sample"
         for row in range(widget.device_profiles_table.rowCount())
     )
+
+
+def test_select_register_profile_loads_register_preview(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("MDS_BASE_DIR", str(tmp_path))
+    app = QApplication.instance() or QApplication([])
+
+    widget = ProfileManagerTab()
+    widget.reload_profiles()
+    widget._select_register_profile_by_id("chint_dtsu71")
+
+    assert app is not None
+    assert widget.register_preview_table.rowCount() > 0
+    assert "chint_dtsu71" in widget.register_preview_status_label.text()
+    assert widget.register_profiles_table.currentRow() >= 0
+
+
+def test_role_linked_to_register_profile_can_load_preview(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("MDS_BASE_DIR", str(tmp_path))
+    app = QApplication.instance() or QApplication([])
+
+    widget = ProfileManagerTab()
+    widget.reload_profiles()
+
+    for row in range(widget.device_profiles_table.rowCount()):
+        item = widget.device_profiles_table.item(row, 0)
+        if item is not None and item.text() == "chint_dtsu71":
+            widget.device_profiles_table.selectRow(row)
+            break
+
+    widget.roles_table.selectRow(0)
+
+    assert app is not None
+    assert widget.register_preview_table.rowCount() > 0
+    assert "Selected register profile chint_dtsu71" in widget.status_label.text()
+    assert widget.roles_table.item(0, 0).toolTip() != ""
+
+
+def test_role_linked_to_communication_profile_shows_clear_status(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("MDS_BASE_DIR", str(tmp_path))
+    app = QApplication.instance() or QApplication([])
+
+    widget = ProfileManagerTab()
+    widget.reload_profiles()
+
+    for row in range(widget.device_profiles_table.rowCount()):
+        item = widget.device_profiles_table.item(row, 0)
+        if item is not None and item.text() == "chint_dtsu71":
+            widget.device_profiles_table.selectRow(row)
+            break
+
+    widget.roles_table.selectRow(1)
+
+    assert app is not None
+    assert widget.register_preview_table.rowCount() == 0
+    assert "communication profile smartlogger_chint_dtsu71" in widget.status_label.text()
+
+
+def test_register_preview_cells_have_tooltips(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("MDS_BASE_DIR", str(tmp_path))
+    app = QApplication.instance() or QApplication([])
+
+    widget = ProfileManagerTab()
+    widget.reload_profiles()
+    widget._select_register_profile_by_id("generic_meter")
+
+    first_item = widget.register_preview_table.item(0, 0)
+
+    assert app is not None
+    assert first_item is not None
+    assert "Variable:" in first_item.toolTip()

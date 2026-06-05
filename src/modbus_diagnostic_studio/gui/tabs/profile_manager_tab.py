@@ -24,7 +24,10 @@ from PySide6.QtWidgets import (
 )
 
 from modbus_diagnostic_studio.device_profiles.loader import load_all_device_profiles
-from modbus_diagnostic_studio.device_profiles.validator import validate_device_profile, validate_role_links
+from modbus_diagnostic_studio.device_profiles.validator import (
+    validate_device_profile,
+    validate_role_links,
+)
 from modbus_diagnostic_studio.gui.help import set_help
 from modbus_diagnostic_studio.profiles.loader import list_builtin_profiles, load_builtin_profile
 from modbus_diagnostic_studio.services.paths import (
@@ -43,6 +46,7 @@ class ProfileManagerTab(QWidget):
         super().__init__()
         self._device_profiles = []
         self._device_profile_errors: list[str] = []
+        self._register_profiles: dict[str, object] = {}
 
         self.status_label = QLabel("Profile Manager loads built-in and user profile metadata only.")
 
@@ -80,6 +84,7 @@ class ProfileManagerTab(QWidget):
         self.roles_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.roles_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.roles_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.roles_table.itemSelectionChanged.connect(self._handle_role_selection_changed)
 
         self.validation_output = QTextEdit()
         self.validation_output.setReadOnly(True)
@@ -87,11 +92,25 @@ class ProfileManagerTab(QWidget):
 
         self.register_profiles_table = QTableWidget(0, 5)
         self.register_profiles_table.setHorizontalHeaderLabels(
-            ["Profile ID", "Name", "Status", "Registers", "Source"]
+            ["Profile ID", "Name", "Status", "Registers", "Description"]
         )
         self.register_profiles_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.register_profiles_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.register_profiles_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.register_profiles_table.itemSelectionChanged.connect(
+            self._handle_register_profile_selection_changed
+        )
+
+        self.register_preview_status_label = QLabel(
+            "Select a register profile to preview its registers."
+        )
+        self.register_preview_table = QTableWidget(0, 6)
+        self.register_preview_table.setHorizontalHeaderLabels(
+            ["Variable", "Address", "Type", "Unit", "Scale", "Description"]
+        )
+        self.register_preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.register_preview_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.register_preview_table.setSelectionBehavior(QTableWidget.SelectRows)
 
         self._build_layout()
         self._attach_help()
@@ -120,6 +139,9 @@ class ProfileManagerTab(QWidget):
 
         content_layout.addWidget(QLabel("Register Profiles"))
         content_layout.addWidget(self.register_profiles_table)
+        content_layout.addWidget(QLabel("Register Preview"))
+        content_layout.addWidget(self.register_preview_status_label)
+        content_layout.addWidget(self.register_preview_table)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -145,6 +167,16 @@ class ProfileManagerTab(QWidget):
             "Validate Selected",
             "Validate the selected device profile structure and linked profile ids.",
         )
+        set_help(
+            self.register_profiles_table,
+            "Register Profiles",
+            "Built-in register profiles used by meter and raw register workflows.",
+        )
+        set_help(
+            self.register_preview_table,
+            "Register Preview",
+            "Preview the decoded register map fields for the selected register profile.",
+        )
 
     def reload_profiles(self) -> None:
         """Reload built-in and user profile summaries."""
@@ -152,18 +184,28 @@ class ProfileManagerTab(QWidget):
         self._device_profiles, self._device_profile_errors = load_all_device_profiles(
             user_device_profiles_dir()
         )
+        self._register_profiles = {
+            profile_id: load_builtin_profile(profile_id)
+            for profile_id in list_builtin_profiles()
+        }
         self._populate_device_profiles_table()
         self._populate_register_profiles_table()
         self._update_device_profile_preview()
+        self._clear_register_preview()
 
-        profile_count = len(self._device_profiles)
+        device_profile_count = len(self._device_profiles)
+        register_profile_count = len(self._register_profiles)
         error_count = len(self._device_profile_errors)
         if error_count:
             self.status_label.setText(
-                f"Loaded {profile_count} device profile(s) with {error_count} user file issue(s)."
+                "Loaded "
+                f"{device_profile_count} device profiles and {register_profile_count} register profiles "
+                f"with {error_count} user file issue(s)."
             )
         else:
-            self.status_label.setText(f"Loaded {profile_count} device profile(s).")
+            self.status_label.setText(
+                f"Loaded {device_profile_count} device profiles and {register_profile_count} register profiles."
+            )
 
     def open_user_device_profiles_folder(self) -> None:
         """Open the user device profile folder in the shell."""
@@ -220,27 +262,47 @@ class ProfileManagerTab(QWidget):
     def _populate_device_profiles_table(self) -> None:
         self.device_profiles_table.setRowCount(len(self._device_profiles))
         for row, profile in enumerate(self._device_profiles):
-            self.device_profiles_table.setItem(row, 0, QTableWidgetItem(profile.device_id))
-            self.device_profiles_table.setItem(row, 1, QTableWidgetItem(profile.name))
-            self.device_profiles_table.setItem(row, 2, QTableWidgetItem(profile.manufacturer))
-            self.device_profiles_table.setItem(row, 3, QTableWidgetItem(profile.model))
-            self.device_profiles_table.setItem(row, 4, QTableWidgetItem(profile.device_type))
-            self.device_profiles_table.setItem(row, 5, QTableWidgetItem(profile.status))
-            self.device_profiles_table.setItem(row, 6, QTableWidgetItem(profile.source))
-            self.device_profiles_table.setItem(row, 7, QTableWidgetItem(str(len(profile.roles))))
+            tooltip = (
+                f"Device ID: {profile.device_id}\n"
+                f"Name: {profile.name}\n"
+                f"Manufacturer: {profile.manufacturer or '-'}\n"
+                f"Model: {profile.model or '-'}\n"
+                f"Device Type: {profile.device_type}\n"
+                f"Status: {profile.status}\n"
+                f"Description: {profile.description or '-'}\n"
+                f"Roles: {len(profile.roles)}"
+            )
+            self._set_table_item(self.device_profiles_table, row, 0, profile.device_id, tooltip)
+            self._set_table_item(self.device_profiles_table, row, 1, profile.name, tooltip)
+            self._set_table_item(self.device_profiles_table, row, 2, profile.manufacturer, tooltip)
+            self._set_table_item(self.device_profiles_table, row, 3, profile.model, tooltip)
+            self._set_table_item(self.device_profiles_table, row, 4, profile.device_type, tooltip)
+            self._set_table_item(self.device_profiles_table, row, 5, profile.status, tooltip)
+            self._set_table_item(self.device_profiles_table, row, 6, profile.source, tooltip)
+            self._set_table_item(
+                self.device_profiles_table, row, 7, str(len(profile.roles)), tooltip
+            )
 
     def _populate_register_profiles_table(self) -> None:
-        profile_ids = list_builtin_profiles()
+        profile_ids = sorted(self._register_profiles)
         self.register_profiles_table.setRowCount(len(profile_ids))
         for row, profile_id in enumerate(profile_ids):
-            profile = load_builtin_profile(profile_id)
-            self.register_profiles_table.setItem(row, 0, QTableWidgetItem(profile.profile_id))
-            self.register_profiles_table.setItem(row, 1, QTableWidgetItem(profile.name))
-            self.register_profiles_table.setItem(row, 2, QTableWidgetItem(profile.status))
-            self.register_profiles_table.setItem(
-                row, 3, QTableWidgetItem(str(len(profile.registers)))
+            profile = self._register_profiles[profile_id]
+            description = profile.description or ""
+            tooltip = (
+                f"Profile ID: {profile.profile_id}\n"
+                f"Name: {profile.name}\n"
+                f"Status: {profile.status}\n"
+                f"Registers: {len(profile.registers)}\n"
+                f"Description: {description or '-'}"
             )
-            self.register_profiles_table.setItem(row, 4, QTableWidgetItem("built-in"))
+            self._set_table_item(self.register_profiles_table, row, 0, profile.profile_id, tooltip)
+            self._set_table_item(self.register_profiles_table, row, 1, profile.name, tooltip)
+            self._set_table_item(self.register_profiles_table, row, 2, profile.status, tooltip)
+            self._set_table_item(
+                self.register_profiles_table, row, 3, str(len(profile.registers)), tooltip
+            )
+            self._set_table_item(self.register_profiles_table, row, 4, description, tooltip)
 
     def _update_device_profile_preview(self) -> None:
         profile = self._selected_device_profile()
@@ -250,20 +312,84 @@ class ProfileManagerTab(QWidget):
                 self.validation_output.setPlainText("\n".join(self._device_profile_errors))
             else:
                 self.validation_output.setPlainText("Select a device profile to preview roles.")
+            self.status_label.setText("Select a device profile to preview its roles.")
             return
 
         self.roles_table.setRowCount(len(profile.roles))
         for row, role_link in enumerate(profile.roles):
-            self.roles_table.setItem(row, 0, QTableWidgetItem(role_link.role))
-            self.roles_table.setItem(row, 1, QTableWidgetItem(role_link.profile_type))
-            self.roles_table.setItem(row, 2, QTableWidgetItem(role_link.profile_id))
-            self.roles_table.setItem(row, 3, QTableWidgetItem("Yes" if role_link.enabled else "No"))
-            self.roles_table.setItem(row, 4, QTableWidgetItem(role_link.description))
+            tooltip = (
+                f"Role: {role_link.role}\n"
+                f"Profile Type: {role_link.profile_type}\n"
+                f"Profile ID: {role_link.profile_id or '-'}\n"
+                f"Enabled: {'Yes' if role_link.enabled else 'No'}\n"
+                f"Description: {role_link.description or '-'}"
+            )
+            self._set_table_item(self.roles_table, row, 0, role_link.role, tooltip)
+            self._set_table_item(self.roles_table, row, 1, role_link.profile_type, tooltip)
+            self._set_table_item(self.roles_table, row, 2, role_link.profile_id, tooltip)
+            self._set_table_item(
+                self.roles_table, row, 3, "Yes" if role_link.enabled else "No", tooltip
+            )
+            self._set_table_item(self.roles_table, row, 4, role_link.description, tooltip)
 
         messages = self._validation_messages_for_profile(profile)
         if not messages:
             messages = ["OK: no validation issues found"]
         self.validation_output.setPlainText("\n".join(messages))
+        self.status_label.setText(
+            f"Selected device profile {profile.device_id}: {len(profile.roles)} role link(s)."
+        )
+
+    def _handle_register_profile_selection_changed(self) -> None:
+        profile = self._selected_register_profile()
+        if profile is None:
+            self._clear_register_preview()
+            return
+        self._load_register_profile_preview(profile.profile_id)
+
+    def _handle_role_selection_changed(self) -> None:
+        role_link = self._selected_role_link()
+        if role_link is None:
+            return
+
+        if not role_link.enabled:
+            self._clear_register_preview("Role is disabled.")
+            self.status_label.setText("Role is disabled.")
+            return
+
+        if not role_link.profile_id:
+            self._clear_register_preview("Role has no linked profile.")
+            self.status_label.setText("Role has no linked profile.")
+            return
+
+        if role_link.profile_type == "register_profile":
+            if role_link.profile_id not in self._register_profiles:
+                self._clear_register_preview(
+                    f"Linked register profile {role_link.profile_id} is not available."
+                )
+                self.status_label.setText(
+                    f"Linked register profile {role_link.profile_id} is not available."
+                )
+                return
+            self._select_register_profile_by_id(role_link.profile_id)
+            self._load_register_profile_preview(role_link.profile_id)
+            return
+
+        if role_link.profile_type == "communication_profile":
+            self._clear_register_preview(
+                "Communication profiles are used for Sniffer diagnostics and do not expose a register map preview."
+            )
+            self.status_label.setText(
+                f"Role points to communication profile {role_link.profile_id}."
+            )
+            return
+
+        self._clear_register_preview(
+            f"Role points to unsupported profile type {role_link.profile_type}."
+        )
+        self.status_label.setText(
+            f"Role points to unsupported profile type {role_link.profile_type}."
+        )
 
     def _validation_messages_for_profile(self, profile) -> list[str]:
         register_ids = set(list_builtin_profiles())
@@ -284,6 +410,22 @@ class ProfileManagerTab(QWidget):
             return None
         return self._device_profiles[row]
 
+    def _selected_register_profile(self):
+        row = self.register_profiles_table.currentRow()
+        if row < 0:
+            return None
+        item = self.register_profiles_table.item(row, 0)
+        if item is None:
+            return None
+        return self._register_profiles.get(item.text())
+
+    def _selected_role_link(self):
+        profile = self._selected_device_profile()
+        row = self.roles_table.currentRow()
+        if profile is None or row < 0 or row >= len(profile.roles):
+            return None
+        return profile.roles[row]
+
     def _validate_profile_file(self, path: Path) -> list[str]:
         from modbus_diagnostic_studio.device_profiles.loader import load_device_profile_file
 
@@ -302,6 +444,59 @@ class ProfileManagerTab(QWidget):
                 self.device_profiles_table.selectRow(row)
                 return
 
+    def _select_register_profile_by_id(self, profile_id: str) -> None:
+        for row in range(self.register_profiles_table.rowCount()):
+            item = self.register_profiles_table.item(row, 0)
+            if item is not None and item.text() == profile_id:
+                self.register_profiles_table.selectRow(row)
+                return
+
+    def _load_register_profile_preview(self, profile_id: str) -> None:
+        profile = self._register_profiles.get(profile_id)
+        if profile is None:
+            self._clear_register_preview(
+                f"Register profile {profile_id} is not available."
+            )
+            return
+
+        self.register_preview_table.setRowCount(len(profile.registers))
+        for row, register in enumerate(profile.registers):
+            description = register.description or ""
+            tooltip = (
+                f"Variable: {register.variable}\n"
+                f"Address: {register.address}\n"
+                f"Type: {register.type}\n"
+                f"Unit: {register.unit or '-'}\n"
+                f"Scale: {register.scale}\n"
+                f"Description: {description or '-'}"
+            )
+            self._set_table_item(self.register_preview_table, row, 0, register.variable, tooltip)
+            self._set_table_item(
+                self.register_preview_table, row, 1, str(register.address), tooltip
+            )
+            self._set_table_item(self.register_preview_table, row, 2, register.type, tooltip)
+            self._set_table_item(
+                self.register_preview_table, row, 3, register.unit or "", tooltip
+            )
+            self._set_table_item(
+                self.register_preview_table, row, 4, str(register.scale), tooltip
+            )
+            self._set_table_item(self.register_preview_table, row, 5, description, tooltip)
+
+        self.register_preview_status_label.setText(
+            f"Selected register profile {profile.profile_id}: {len(profile.registers)} registers."
+        )
+        self.status_label.setText(
+            f"Selected register profile {profile.profile_id}: {len(profile.registers)} registers."
+        )
+
+    def _clear_register_preview(
+        self,
+        message: str = "Select a register profile to preview its registers.",
+    ) -> None:
+        self.register_preview_table.setRowCount(0)
+        self.register_preview_status_label.setText(message)
+
     @staticmethod
     def _unique_destination(path: Path) -> Path:
         if not path.exists():
@@ -311,6 +506,18 @@ class ProfileManagerTab(QWidget):
             if not candidate.exists():
                 return candidate
         raise RuntimeError(f"Could not find a unique destination for {path.name}")
+
+    @staticmethod
+    def _set_table_item(
+        table: QTableWidget,
+        row: int,
+        column: int,
+        text: str,
+        tooltip: str,
+    ) -> None:
+        item = QTableWidgetItem(text)
+        item.setToolTip(tooltip)
+        table.setItem(row, column, item)
 
 
 def _deduplicate_messages(messages: list[str]) -> list[str]:

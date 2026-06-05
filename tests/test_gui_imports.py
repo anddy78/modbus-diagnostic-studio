@@ -62,12 +62,14 @@ def test_main_window_theme_references_exist() -> None:
 
 
 def test_sniffer_tab_export_methods_exist() -> None:
+    from modbus_diagnostic_studio.gui.tabs.profile_manager_tab import ProfileManagerTab
     from modbus_diagnostic_studio.gui.tabs.sniffer_diagnostic_tab import SnifferDiagnosticTab
 
     assert callable(SnifferDiagnosticTab.export_events_csv)
     assert callable(SnifferDiagnosticTab.export_events_jsonl)
     assert callable(SnifferDiagnosticTab.export_exchanges_csv)
     assert callable(SnifferDiagnosticTab.export_exchanges_jsonl)
+    assert callable(ProfileManagerTab.reload_profiles)
 
 
 def test_decode_registers_uint16() -> None:
