@@ -27,3 +27,6 @@ Thumbs.db
 
 *.egg-info/
 src/*.egg-info/
+
+*.egg-info/
+src/*.egg-info/
