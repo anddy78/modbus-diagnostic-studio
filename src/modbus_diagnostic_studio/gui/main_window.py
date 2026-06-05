@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
 
+from modbus_diagnostic_studio.gui.help import attach_help_menu
 from modbus_diagnostic_studio.gui.tabs.advanced_master_tab import AdvancedMasterTab
 from modbus_diagnostic_studio.gui.tabs.connection_tab import ConnectionTab
 from modbus_diagnostic_studio.gui.tabs.decoder_tab import DecoderTab
@@ -31,6 +32,8 @@ class MainWindow(QMainWindow):
         self.app_state = ApplicationState()
         self.theme_menu = self.menuBar().addMenu("Theme")
         self.theme_actions: dict[str, QAction] = {}
+        self.help_menu = None
+        self.help_actions: dict[str, QAction] = {}
 
         tabs = QTabWidget()
         tabs.addTab(ConnectionTab(), "Connection")
@@ -44,6 +47,7 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(tabs)
         self._build_theme_menu()
+        attach_help_menu(self)
         self._apply_theme("system")
 
     def _build_theme_menu(self) -> None:

@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modbus_diagnostic_studio.gui.help import set_help
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
 from modbus_diagnostic_studio.services.application_state import ApplicationState
 from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
@@ -198,8 +200,10 @@ class SlaveSimulatorTab(QWidget):
         self.register_table.setHorizontalHeaderLabels(["Address", "Decimal", "Hex", "Bool"])
         self.register_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.register_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.register_table.setMinimumHeight(260)
 
         self._build_layout()
+        self._attach_help()
         self.refresh_ports()
 
     def _build_layout(self) -> None:
@@ -258,18 +262,43 @@ class SlaveSimulatorTab(QWidget):
         view_row.addWidget(self.view_count)
         view_row.addWidget(self.refresh_table_button)
 
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.addWidget(self.banner_label)
+        content_layout.addWidget(self.status_label)
+        content_layout.addLayout(form)
+        content_layout.addLayout(btn_row)
+        content_layout.addLayout(stats)
+        content_layout.addWidget(QLabel("Datastore editor"))
+        content_layout.addLayout(editor_form)
+        content_layout.addWidget(QLabel("Register view"))
+        content_layout.addLayout(view_row)
+        content_layout.addWidget(self.register_table)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(content_widget)
+
         layout = QVBoxLayout()
-        layout.addWidget(self.banner_label)
-        layout.addWidget(self.status_label)
-        layout.addLayout(form)
-        layout.addLayout(btn_row)
-        layout.addLayout(stats)
-        layout.addWidget(QLabel("Datastore editor"))
-        layout.addLayout(editor_form)
-        layout.addWidget(QLabel("Register view"))
-        layout.addLayout(view_row)
-        layout.addWidget(self.register_table)
+        layout.addWidget(scroll)
         self.setLayout(layout)
+
+    def _attach_help(self) -> None:
+        set_help(
+            self.slave_id_spin,
+            "Slave ID",
+            "Address used by the simulator when replying to incoming Modbus RTU requests.",
+        )
+        set_help(
+            self.start_button,
+            "Start Slave Simulator",
+            "Open the selected COM port in active slave mode and begin responding to master requests.",
+        )
+        set_help(
+            self.register_table,
+            "Datastore editor",
+            "This table shows the simulated datastore values for the selected bank and range.",
+        )
 
     # ── port refresh ──────────────────────────────────────────────────────
 

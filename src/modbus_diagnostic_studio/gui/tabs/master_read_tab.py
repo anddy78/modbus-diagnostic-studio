@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modbus_diagnostic_studio.gui.help import set_help
 from modbus_diagnostic_studio.master.client import ModbusMasterClient
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
 from modbus_diagnostic_studio.profiles.decoder import (
@@ -92,7 +94,7 @@ class MasterReadWorker(QObject):
                 )
             )
         except Exception as exc:
-            self.failed.emit(str(exc))
+            self.failed.emit(_friendly_serial_error(str(exc)))
         finally:
             try:
                 transport.close()
@@ -159,14 +161,17 @@ class MasterReadTab(QWidget):
         self.raw_table = QTableWidget(0, 4)
         self.raw_table.setHorizontalHeaderLabels(["Offset", "Address", "uint16", "Hex"])
         self.raw_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.raw_table.setMinimumHeight(220)
 
         self.decoded_table = QTableWidget(0, 5)
         self.decoded_table.setHorizontalHeaderLabels(
             ["Variable", "Value", "Unit", "Address", "Description"]
         )
         self.decoded_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.decoded_table.setMinimumHeight(220)
 
         self._build_layout()
+        self._attach_help()
         self.refresh_ports()
 
     def _build_layout(self) -> None:
@@ -185,15 +190,40 @@ class MasterReadTab(QWidget):
         form.addRow("Quantity", self.quantity)
         form.addRow("Profile", self.profile_combo)
 
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.addWidget(self.status_label)
+        content_layout.addLayout(form)
+        content_layout.addWidget(self.read_button)
+        content_layout.addWidget(QLabel("Raw registers"))
+        content_layout.addWidget(self.raw_table)
+        content_layout.addWidget(QLabel("Profile decoded values"))
+        content_layout.addWidget(self.decoded_table)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(content_widget)
+
         layout = QVBoxLayout()
-        layout.addWidget(self.status_label)
-        layout.addLayout(form)
-        layout.addWidget(self.read_button)
-        layout.addWidget(QLabel("Raw registers"))
-        layout.addWidget(self.raw_table)
-        layout.addWidget(QLabel("Profile decoded values"))
-        layout.addWidget(self.decoded_table)
+        layout.addWidget(scroll)
         self.setLayout(layout)
+
+    def _attach_help(self) -> None:
+        set_help(
+            self.function,
+            "Function",
+            "Choose whether the active read uses FC03 holding registers or FC04 input registers.",
+        )
+        set_help(
+            self.address,
+            "Address",
+            "Start address of the Modbus block to read.",
+        )
+        set_help(
+            self.quantity,
+            "Quantity",
+            "Number of registers to read from the selected start address.",
+        )
 
     def refresh_ports(self) -> None:
         """Refresh available ports without opening them."""
@@ -317,3 +347,13 @@ class MasterReadTab(QWidget):
         self.decoded_table.setItem(row, 2, QTableWidgetItem(value.unit or ""))
         self.decoded_table.setItem(row, 3, QTableWidgetItem(str(value.address)))
         self.decoded_table.setItem(row, 4, QTableWidgetItem(value.description))
+
+
+def _friendly_serial_error(message: str) -> str:
+    lower = message.lower()
+    if "timed out" in lower or "no response" in lower:
+        return (
+            "No response received from device. Check COM port, wiring, slave ID, "
+            f"baudrate, parity and stop bits. Details: {message}"
+        )
+    return message

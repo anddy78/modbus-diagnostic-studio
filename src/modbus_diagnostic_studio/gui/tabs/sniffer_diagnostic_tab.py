@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modbus_diagnostic_studio.gui.help import set_help
 from modbus_diagnostic_studio.models.communication_profile import CommunicationProfile
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
 from modbus_diagnostic_studio.services.application_state import ApplicationState
@@ -218,17 +220,21 @@ class SnifferDiagnosticTab(QWidget):
             ]
         )
         self.frames_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.frames_table.setMinimumHeight(240)
 
         self.diagnosis_text = QTextEdit()
         self.diagnosis_text.setReadOnly(True)
+        self.diagnosis_text.setMinimumHeight(160)
 
         self.fingerprint_table = QTableWidget(0, 4)
         self.fingerprint_table.setHorizontalHeaderLabels(
             ["Profile ID", "Score", "Matched Items", "Missing Items"]
         )
         self.fingerprint_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.fingerprint_table.setMinimumHeight(180)
 
         self._build_layout()
+        self._attach_help()
         self.refresh_ports()
 
     def _build_layout(self) -> None:
@@ -282,20 +288,45 @@ class SnifferDiagnosticTab(QWidget):
         stats.addWidget(QLabel("Latency avg"), 4, 0)
         stats.addWidget(self.latency_avg_label, 4, 1)
 
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.addWidget(self.banner_label)
+        content_layout.addWidget(self.status_label)
+        content_layout.addLayout(form)
+        content_layout.addLayout(button_row)
+        content_layout.addLayout(export_row)
+        content_layout.addLayout(stats)
+        content_layout.addWidget(QLabel("Recent frames"))
+        content_layout.addWidget(self.frames_table)
+        content_layout.addWidget(QLabel("Preliminary diagnosis"))
+        content_layout.addWidget(self.diagnosis_text)
+        content_layout.addWidget(QLabel("Profile fingerprint ranking"))
+        content_layout.addWidget(self.fingerprint_table)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(content_widget)
+
         layout = QVBoxLayout()
-        layout.addWidget(self.banner_label)
-        layout.addWidget(self.status_label)
-        layout.addLayout(form)
-        layout.addLayout(button_row)
-        layout.addLayout(export_row)
-        layout.addLayout(stats)
-        layout.addWidget(QLabel("Recent frames"))
-        layout.addWidget(self.frames_table)
-        layout.addWidget(QLabel("Preliminary diagnosis"))
-        layout.addWidget(self.diagnosis_text)
-        layout.addWidget(QLabel("Profile fingerprint ranking"))
-        layout.addWidget(self.fingerprint_table)
+        layout.addWidget(scroll)
         self.setLayout(layout)
+
+    def _attach_help(self) -> None:
+        set_help(
+            self.banner_label,
+            "Passive Sniffer",
+            "Passive Sniffer reads serial traffic only. It does not send Modbus requests and must never transmit.",
+        )
+        set_help(
+            self.profile_combo,
+            "Communication profile",
+            "Use Auto to compare against all built-in fingerprints, or select one profile to narrow the ranking.",
+        )
+        set_help(
+            self.start_button,
+            "Start Passive Sniffer",
+            "Reserve the selected COM port in passive mode and begin read-only capture.",
+        )
 
     def refresh_ports(self) -> None:
         """Refresh available COM ports without opening them."""

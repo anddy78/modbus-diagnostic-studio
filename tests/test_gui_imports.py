@@ -8,6 +8,7 @@ pytest.importorskip("PySide6")
 
 def test_gui_imports() -> None:
     from modbus_diagnostic_studio.gui.app import run_app
+    from modbus_diagnostic_studio.gui.help import attach_help_menu, set_help
     from modbus_diagnostic_studio.gui.main_window import MainWindow
     from modbus_diagnostic_studio.gui.tabs import (
         AdvancedMasterTab,
@@ -33,6 +34,8 @@ def test_gui_imports() -> None:
     assert SnifferDiagnosticTab.__name__ == "SnifferDiagnosticTab"
     assert available_themes() == ["system", "light", "dark"]
     assert callable(apply_theme)
+    assert callable(set_help)
+    assert callable(attach_help_menu)
 
 
 def test_main_window_theme_references_exist() -> None:
@@ -46,7 +49,9 @@ def test_main_window_theme_references_exist() -> None:
     window = MainWindow()
 
     assert window.theme_menu is not None
+    assert window.help_menu is not None
     assert set(window.theme_actions) == {"system", "light", "dark"}
+    assert {"quick_start", "safety", "about"} <= set(window.help_actions)
 
 
 def test_sniffer_tab_export_methods_exist() -> None:
@@ -145,18 +150,26 @@ def test_decode_registers_incomplete_pair() -> None:
 
 
 def test_tab_constructors_accept_optional_app_state() -> None:
-    """Tabs can be imported and signature-checked without a QApplication."""
+    """Tabs expose optional app_state and can build with a QApplication."""
     import inspect
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
     from modbus_diagnostic_studio.gui.tabs.advanced_master_tab import AdvancedMasterTab
     from modbus_diagnostic_studio.gui.tabs.master_read_tab import MasterReadTab
     from modbus_diagnostic_studio.gui.tabs.meters_tab import MetersTab
     from modbus_diagnostic_studio.gui.tabs.slave_simulator_tab import SlaveSimulatorTab
     from modbus_diagnostic_studio.gui.tabs.sniffer_diagnostic_tab import SnifferDiagnosticTab
 
+    app = QApplication.instance() or QApplication([])
+
     for cls in (AdvancedMasterTab, MasterReadTab, MetersTab, SlaveSimulatorTab, SnifferDiagnosticTab):
         params = inspect.signature(cls.__init__).parameters
         assert "app_state" in params, f"{cls.__name__} missing app_state"
         assert params["app_state"].default is None
+        widget = cls()
+        assert widget is not None
 
 
 def test_decode_bits() -> None:

@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modbus_diagnostic_studio.gui.help import set_help
 from modbus_diagnostic_studio.master.client import ModbusMasterClient
 from modbus_diagnostic_studio.master.profile_reader import (
     ProfileReadResult,
@@ -81,7 +83,7 @@ class MeterReadWorker(QObject):
             result = read_profile(client, self._slave_id, profile)
             self.finished.emit(result)
         except Exception as exc:
-            self.failed.emit(str(exc))
+            self.failed.emit(_friendly_serial_error(str(exc)))
         finally:
             try:
                 transport.close()
@@ -158,8 +160,10 @@ class MetersTab(QWidget):
         )
         self.values_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.values_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.values_table.setMinimumHeight(260)
 
         self._build_layout()
+        self._attach_help()
         self.refresh_ports()
 
     def _build_layout(self) -> None:
@@ -182,13 +186,38 @@ class MetersTab(QWidget):
         btn_row.addWidget(self.start_button)
         btn_row.addWidget(self.stop_button)
 
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.addWidget(self.status_label)
+        content_layout.addLayout(form)
+        content_layout.addLayout(btn_row)
+        content_layout.addWidget(QLabel("Electrical values"))
+        content_layout.addWidget(self.values_table)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(content_widget)
+
         layout = QVBoxLayout()
-        layout.addWidget(self.status_label)
-        layout.addLayout(form)
-        layout.addLayout(btn_row)
-        layout.addWidget(QLabel("Electrical values"))
-        layout.addWidget(self.values_table)
+        layout.addWidget(scroll)
         self.setLayout(layout)
+
+    def _attach_help(self) -> None:
+        set_help(
+            self.profile_combo,
+            "Meter profile",
+            "Select the built-in meter profile that describes the register map to read.",
+        )
+        set_help(
+            self.read_once_button,
+            "Read Once",
+            "Perform one active Modbus read cycle using the selected meter profile.",
+        )
+        set_help(
+            self.start_button,
+            "Continuous Read",
+            "Start repeated active reads at the selected interval. The COM port is reserved while running.",
+        )
 
     # ── port management ──────────────────────────────────────────────────
 
@@ -362,3 +391,13 @@ class MetersTab(QWidget):
             self.values_table.setItem(row, 3, QTableWidgetItem(val.unit or ""))
             self.values_table.setItem(row, 4, QTableWidgetItem(str(val.address)))
             self.values_table.setItem(row, 5, QTableWidgetItem(val.description))
+
+
+def _friendly_serial_error(message: str) -> str:
+    lower = message.lower()
+    if "timed out" in lower or "no response" in lower:
+        return (
+            "No response received from device. Check COM port, wiring, slave ID, "
+            f"baudrate, parity and stop bits. Details: {message}"
+        )
+    return message

@@ -42,6 +42,18 @@ def test_apply_theme_light_and_dark_change_palette() -> None:
     assert light_window != dark_window
 
 
+def test_apply_theme_system_restores_standard_palette_and_clears_stylesheet() -> None:
+    app = QApplication.instance() or QApplication([])
+
+    apply_theme(app, "dark")
+    assert app.styleSheet() != ""
+
+    apply_theme(app, "system")
+
+    assert app.styleSheet() == ""
+    assert app.palette().color(QPalette.Window) == app.style().standardPalette().color(QPalette.Window)
+
+
 def test_main_window_builds_theme_menu_and_apply_theme() -> None:
     app = QApplication.instance() or QApplication([])
 
@@ -49,6 +61,7 @@ def test_main_window_builds_theme_menu_and_apply_theme() -> None:
 
     assert window.theme_menu is not None
     assert set(window.theme_actions) == {"system", "light", "dark"}
+    assert window.help_menu is not None
 
     window._apply_theme("light")
     window._apply_theme("dark")

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -26,6 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modbus_diagnostic_studio.gui.help import set_help
 from modbus_diagnostic_studio.master.client import ModbusMasterClient
 from modbus_diagnostic_studio.master.operation_log import (
     MAX_LOG_ENTRIES,
@@ -243,7 +245,7 @@ class AdvancedReadWorker(QObject):
 
             self.finished.emit(data)
         except Exception as exc:
-            self.failed.emit(str(exc))
+            self.failed.emit(_friendly_serial_error(str(exc)))
         finally:
             try:
                 transport.close()
@@ -310,7 +312,7 @@ class AdvancedWriteWorker(QObject):
             else:
                 self.failed.emit(f"Unsupported write function code: {r.function_code}")
         except Exception as exc:
-            self.failed.emit(str(exc))
+            self.failed.emit(_friendly_serial_error(str(exc)))
         finally:
             try:
                 transport.close()
@@ -432,6 +434,7 @@ class AdvancedMasterTab(QWidget):
         )
         self.registers_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.registers_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.registers_table.setMinimumHeight(260)
 
         # ── write section ─────────────────────────────────────────────────
         self._build_write_section()
@@ -440,6 +443,7 @@ class AdvancedMasterTab(QWidget):
         self._build_log_section()
 
         self._build_layout()
+        self._attach_help()
         self.refresh_ports()
 
     # ── write section builder ─────────────────────────────────────────────
@@ -500,6 +504,7 @@ class AdvancedMasterTab(QWidget):
         )
         self.log_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.log_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.log_table.setMinimumHeight(220)
 
         self.clear_log_button = QPushButton("Clear Log")
         self.clear_log_button.clicked.connect(self._clear_log)
@@ -542,7 +547,7 @@ class AdvancedMasterTab(QWidget):
         meta_row.addStretch()
 
         # write group
-        write_group = QGroupBox("Write Mode — Locked by default")
+        write_group = QGroupBox("Write Mode - Locked by default")
         wform = QFormLayout()
         wform.addRow(self.write_warning_label)
         wform.addRow(self.write_enable_check)
@@ -554,6 +559,8 @@ class AdvancedMasterTab(QWidget):
         wform.addRow(self.send_write_button)
         wform.addRow(self.write_status_label)
         write_group.setLayout(wform)
+        write_group.setMinimumHeight(260)
+        self.write_group = write_group
 
         # log group
         log_group = QGroupBox("Master Operation Log")
@@ -566,17 +573,59 @@ class AdvancedMasterTab(QWidget):
         log_vbox.addLayout(log_btn_row)
         log_vbox.addWidget(self.log_table)
         log_group.setLayout(log_vbox)
+        log_group.setMinimumHeight(320)
+        self.log_group = log_group
+
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.addWidget(self.status_label)
+        content_layout.addLayout(form)
+        content_layout.addLayout(btn_row)
+        content_layout.addLayout(meta_row)
+        content_layout.addWidget(QLabel("Registers / Bits"))
+        content_layout.addWidget(self.registers_table)
+        content_layout.addWidget(write_group)
+        content_layout.addWidget(log_group)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(content_widget)
 
         layout = QVBoxLayout()
-        layout.addWidget(self.status_label)
-        layout.addLayout(form)
-        layout.addLayout(btn_row)
-        layout.addLayout(meta_row)
-        layout.addWidget(QLabel("Registers / Bits"))
-        layout.addWidget(self.registers_table)
-        layout.addWidget(write_group)
-        layout.addWidget(log_group)
+        layout.addWidget(scroll)
         self.setLayout(layout)
+
+    def _attach_help(self) -> None:
+        set_help(
+            self.function_combo,
+            "Function",
+            "Choose the Modbus read function. FC01/FC02 read bits, FC03/FC04 read registers.",
+        )
+        set_help(
+            self.start_address,
+            "Address",
+            "Start address of the Modbus block for the next active read request.",
+        )
+        set_help(
+            self.quantity,
+            "Quantity",
+            "Number of bits or registers to read from the selected start address.",
+        )
+        set_help(
+            self.decode_format,
+            "Decode format",
+            "Display raw registers as integer, float, hex, binary, or float32 word-swap.",
+        )
+        set_help(
+            self.write_enable_check,
+            "Write Mode unlock",
+            "Write mode stays locked until you explicitly enable it, acknowledge the risk, and type WRITE.",
+        )
+        set_help(
+            self.send_write_button,
+            "Send Write",
+            "Transmit a Modbus write request only after the protection steps are satisfied and the confirmation dialog is accepted.",
+        )
 
     # ── port refresh ──────────────────────────────────────────────────────
 
@@ -1125,3 +1174,13 @@ class AdvancedMasterTab(QWidget):
             self.registers_table.setItem(i, 3, QTableWidgetItem(row.hex_str))
             self.registers_table.setItem(i, 4, QTableWidgetItem(row.bin_str))
             self.registers_table.setItem(i, 5, QTableWidgetItem(row.decoded))
+
+
+def _friendly_serial_error(message: str) -> str:
+    lower = message.lower()
+    if "timed out" in lower or "no response" in lower:
+        return (
+            "No response received from device. Check COM port, wiring, slave ID, "
+            f"baudrate, parity and stop bits. Details: {message}"
+        )
+    return message
