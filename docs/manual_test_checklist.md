@@ -12,6 +12,10 @@ Use this checklist to validate the beta GUI on Windows.
 - [ ] Connection tab lists COM ports.
 - [ ] Decoder tab decodes raw hex.
 - [ ] Profiles tab loads built-in profiles.
+- [ ] Profile Manager tab loads built-in device profiles.
+- [ ] Profile Manager lists built-in register profiles.
+- [ ] Profile Manager validates a selected device profile.
+- [ ] Profile Manager opens `device_profiles\user`.
 - [ ] Meters tab opens.
 - [ ] Theme selector works.
 

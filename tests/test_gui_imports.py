@@ -16,6 +16,7 @@ def test_gui_imports() -> None:
         DecoderTab,
         MasterReadTab,
         MetersTab,
+        ProfileManagerTab,
         ProfilesTab,
         SlaveSimulatorTab,
         SnifferDiagnosticTab,
@@ -29,6 +30,7 @@ def test_gui_imports() -> None:
     assert DecoderTab.__name__ == "DecoderTab"
     assert MasterReadTab.__name__ == "MasterReadTab"
     assert MetersTab.__name__ == "MetersTab"
+    assert ProfileManagerTab.__name__ == "ProfileManagerTab"
     assert ProfilesTab.__name__ == "ProfilesTab"
     assert SlaveSimulatorTab.__name__ == "SlaveSimulatorTab"
     assert SnifferDiagnosticTab.__name__ == "SnifferDiagnosticTab"
@@ -52,6 +54,11 @@ def test_main_window_theme_references_exist() -> None:
     assert window.help_menu is not None
     assert set(window.theme_actions) == {"system", "light", "dark"}
     assert {"quick_start", "safety", "about"} <= set(window.help_actions)
+    assert window.tabs is not None
+    assert any(
+        window.tabs.tabText(index) == "Profile Manager"
+        for index in range(window.tabs.count())
+    )
 
 
 def test_sniffer_tab_export_methods_exist() -> None:

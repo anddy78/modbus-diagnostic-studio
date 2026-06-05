@@ -17,10 +17,17 @@ if (-not (Test-Path $SpecPath)) {
 Write-Host "Building portable Windows package..."
 & $PythonExe -m PyInstaller --noconfirm --clean $SpecPath
 
-foreach ($Folder in @("config", "logs", "captures", "exports")) {
+foreach ($Folder in @(
+    "config",
+    "logs",
+    "captures",
+    "exports",
+    "profiles\user",
+    "device_profiles\user"
+)) {
     $Target = Join-Path $OutputDir $Folder
     if (-not (Test-Path $Target)) {
-        New-Item -ItemType Directory -Path $Target | Out-Null
+        New-Item -ItemType Directory -Path $Target -Force | Out-Null
     }
 }
 

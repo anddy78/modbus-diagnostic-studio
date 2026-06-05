@@ -11,6 +11,7 @@ from modbus_diagnostic_studio.gui.tabs.connection_tab import ConnectionTab
 from modbus_diagnostic_studio.gui.tabs.decoder_tab import DecoderTab
 from modbus_diagnostic_studio.gui.tabs.master_read_tab import MasterReadTab
 from modbus_diagnostic_studio.gui.tabs.meters_tab import MetersTab
+from modbus_diagnostic_studio.gui.tabs.profile_manager_tab import ProfileManagerTab
 from modbus_diagnostic_studio.gui.tabs.profiles_tab import ProfilesTab
 from modbus_diagnostic_studio.gui.tabs.slave_simulator_tab import SlaveSimulatorTab
 from modbus_diagnostic_studio.gui.tabs.sniffer_diagnostic_tab import (
@@ -35,17 +36,18 @@ class MainWindow(QMainWindow):
         self.help_menu = None
         self.help_actions: dict[str, QAction] = {}
 
-        tabs = QTabWidget()
-        tabs.addTab(ConnectionTab(), "Connection")
-        tabs.addTab(MetersTab(self.app_state), "Meters")
-        tabs.addTab(AdvancedMasterTab(self.app_state), "Advanced Master")
-        tabs.addTab(SlaveSimulatorTab(self.app_state), "Slave Simulator")
-        tabs.addTab(DecoderTab(), "Decoder")
-        tabs.addTab(MasterReadTab(self.app_state), "Master Read")
-        tabs.addTab(SnifferDiagnosticTab(self.app_state), "Sniffer Diagnostic")
-        tabs.addTab(ProfilesTab(), "Profiles")
+        self.tabs = QTabWidget()
+        self.tabs.addTab(ConnectionTab(), "Connection")
+        self.tabs.addTab(MetersTab(self.app_state), "Meters")
+        self.tabs.addTab(AdvancedMasterTab(self.app_state), "Advanced Master")
+        self.tabs.addTab(SlaveSimulatorTab(self.app_state), "Slave Simulator")
+        self.tabs.addTab(DecoderTab(), "Decoder")
+        self.tabs.addTab(MasterReadTab(self.app_state), "Master Read")
+        self.tabs.addTab(SnifferDiagnosticTab(self.app_state), "Sniffer Diagnostic")
+        self.tabs.addTab(ProfilesTab(), "Profiles")
+        self.tabs.addTab(ProfileManagerTab(), "Profile Manager")
 
-        self.setCentralWidget(tabs)
+        self.setCentralWidget(self.tabs)
         self._build_theme_menu()
         attach_help_menu(self)
         self._apply_theme("system")

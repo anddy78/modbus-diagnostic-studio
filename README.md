@@ -26,6 +26,7 @@ The theme selector will support `System`, `Light` and `Dark` modes.
 - Passive RTU sniffer diagnostics
 - Raw frame decoder
 - Profile-based decoding
+- Role-oriented Device Profile Manager
 - Meter simulation
 - Windows portable/installer packaging
 
@@ -101,9 +102,17 @@ The final application must run as:
 
 For Master Write testing in this beta, use the built-in Slave Simulator first. Do not write to real equipment unless you have explicit authorization.
 
+### Profile model layers
+
+- Register Profiles describe the register map exposed by a device acting as a slave.
+- Communication Profiles describe the expected polling pattern between a master and a slave.
+- Device Profiles group those roles under one equipment identity and are managed from the `Profile Manager` tab.
+
 ### Where files go
 
 - Captures: `captures\`
 - Logs: `logs\`
 - Operation log exports: `exports\`
 - Local config: `config\`
+- User register profiles: `profiles\user\`
+- User device profiles: `device_profiles\user\`

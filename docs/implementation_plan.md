@@ -19,6 +19,16 @@ Implement profile system:
 - built-in register profiles
 - profile-based register decoding
 
+### Phase 2B
+Implement device profile management foundations.
+
+Scope:
+- Define a role-oriented device profile model.
+- Add YAML loading and validation for built-in and user device profiles.
+- Keep compatibility with existing register profiles and communication profiles.
+- Add a Profile Manager GUI tab for inspecting device profiles and bundled register profiles.
+- Add writable runtime folders for `profiles/user` and `device_profiles/user`.
+
 ## Phase 3
 Implement active connection and master foundations.
 

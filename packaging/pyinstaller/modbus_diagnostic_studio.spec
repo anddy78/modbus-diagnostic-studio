@@ -13,6 +13,10 @@ datas = [
         "modbus_diagnostic_studio/profiles/builtins",
     ),
     (
+        str(src_root / "modbus_diagnostic_studio" / "device_profiles" / "builtins"),
+        "modbus_diagnostic_studio/device_profiles/builtins",
+    ),
+    (
         str(src_root / "modbus_diagnostic_studio" / "sniffer" / "builtins"),
         "modbus_diagnostic_studio/sniffer/builtins",
     ),

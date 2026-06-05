@@ -1,0 +1,11 @@
+device_id: generic_modbus_meter
+name: Generic Modbus Meter
+manufacturer: Generic
+model: Generic Meter
+device_type: meter
+status: demo
+roles:
+  - role: slave
+    profile_type: register_profile
+    profile_id: generic_meter
+    description: Generic meter register map.

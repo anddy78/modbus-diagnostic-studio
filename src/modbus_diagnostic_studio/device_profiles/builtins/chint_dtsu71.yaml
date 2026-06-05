@@ -1,0 +1,15 @@
+device_id: chint_dtsu71
+name: Chint DTSU71
+manufacturer: Chint
+model: DTSU71
+device_type: meter
+status: observed
+roles:
+  - role: slave
+    profile_type: register_profile
+    profile_id: chint_dtsu71
+    description: Register map observed from Huawei SmartLogger integration.
+  - role: master_target
+    profile_type: communication_profile
+    profile_id: smartlogger_chint_dtsu71
+    description: Communication pattern when polled by Huawei SmartLogger.

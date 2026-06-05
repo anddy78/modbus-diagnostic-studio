@@ -1,0 +1,16 @@
+device_id: generic_inverter_demo
+name: Generic Inverter Demo
+manufacturer: Generic
+model: Generic Inverter
+device_type: inverter
+status: demo
+roles:
+  - role: slave
+    profile_type: register_profile
+    profile_id: ""
+    description: Placeholder for inverter register map exposed as Modbus slave.
+    enabled: false
+  - role: master
+    profile_type: communication_profile
+    profile_id: inverter_meter_generic
+    description: Generic inverter polling an external meter.

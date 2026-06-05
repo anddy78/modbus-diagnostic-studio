@@ -22,6 +22,7 @@ Core principles:
 - `core/`: CRC, RTU frame parsing, endian helpers and raw frame decoding.
 - `models/`: dataclasses for Modbus frames, profile definitions, connection settings and future capture models.
 - `profiles/`: register profile loading, validation and profile-based value decoding.
+- `device_profiles/`: role-oriented device definitions that link physical/logical equipment to register and communication profiles.
 - `transports/`: active serial/TCP wrappers. These are used by active master/slave workflows, not by passive sniffer diagnostics.
 - `master/`: active Modbus master operations.
 - `slave/`: active simulator/slave operations.
@@ -157,6 +158,25 @@ Communication profiles should support:
   - max CRC error rate percent
   - max timeout rate percent
   - max response latency ms
+
+## Device Profiles
+
+Device profiles represent a physical or logical device and group the roles it can play.
+
+They sit above register and communication profiles:
+- Register profile: how a device exposes registers when acting as a Modbus slave.
+- Communication profile: the expected polling pattern between a master and a slave.
+- Device profile: the equipment identity that links one or more roles to those profile types.
+
+Example inverter:
+- role `slave`: exposes its own Modbus register map.
+- role `master`: polls an external meter or BMS and produces a recognizable communication pattern.
+
+Example meter:
+- role `slave`: exposes measurement registers.
+- role `master_target`: describes the observed communication pattern when a SmartLogger or inverter polls it.
+
+User-provided device profiles should live under `device_profiles/user/` in the writable runtime directory.
 
 ## Meter Workflows
 
