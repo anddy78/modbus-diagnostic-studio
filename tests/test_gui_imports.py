@@ -16,6 +16,7 @@ def test_gui_imports() -> None:
         ProfilesTab,
         SnifferDiagnosticTab,
     )
+    from modbus_diagnostic_studio.gui.theme import available_themes, apply_theme
 
     assert callable(run_app)
     assert MainWindow.__name__ == "MainWindow"
@@ -24,3 +25,5 @@ def test_gui_imports() -> None:
     assert MasterReadTab.__name__ == "MasterReadTab"
     assert ProfilesTab.__name__ == "ProfilesTab"
     assert SnifferDiagnosticTab.__name__ == "SnifferDiagnosticTab"
+    assert available_themes() == ["system", "light", "dark"]
+    assert callable(apply_theme)
