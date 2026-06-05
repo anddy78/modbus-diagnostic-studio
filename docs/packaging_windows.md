@@ -40,6 +40,20 @@ Run from PowerShell:
 .\scripts\build_portable.ps1
 ```
 
+## Beta ZIP
+
+To create the versioned beta ZIP after the portable build succeeds, run:
+
+```powershell
+.\scripts\build_beta_zip.ps1
+```
+
+Expected archive:
+
+- `dist\ModbusDiagnosticStudio_0.1.0-beta_portable.zip`
+
+The archive contains the full `dist\ModbusDiagnosticStudioPortable\` folder.
+
 ## Validation
 
 Recommended validation before packaging:

@@ -82,3 +82,28 @@ The final application must run as:
 
 - `ModbusDiagnosticStudio.exe`
 - or as a portable Windows folder containing the executable, profiles, config, logs and captures
+
+## Quick Start Beta
+
+### From the portable ZIP
+
+1. Download and extract `ModbusDiagnosticStudio_0.1.0-beta_portable.zip`.
+2. Open `dist\ModbusDiagnosticStudioPortable\`.
+3. Run `ModbusDiagnosticStudioPortable.exe`.
+
+### From the virtual environment
+
+```powershell
+.\.venv\Scripts\python.exe -m modbus_diagnostic_studio.main
+```
+
+### Safe write testing workflow
+
+For Master Write testing in this beta, use the built-in Slave Simulator first. Do not write to real equipment unless you have explicit authorization.
+
+### Where files go
+
+- Captures: `captures\`
+- Logs: `logs\`
+- Operation log exports: `exports\`
+- Local config: `config\`
