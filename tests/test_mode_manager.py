@@ -77,3 +77,14 @@ def test_release_missing_port_is_noop() -> None:
     manager.release("COM9")
 
     assert manager.current_reservations() == {}
+
+
+def test_two_instances_do_not_share_reservations() -> None:
+    """Instance-level storage: a reservation on mm1 is invisible to mm2."""
+    mm1 = ModeManager()
+    mm2 = ModeManager()
+
+    mm1.reserve("COM3", AppMode.MASTER_READ, "owner_a")
+
+    assert mm1.is_reserved("COM3") is True
+    assert mm2.is_reserved("COM3") is False
