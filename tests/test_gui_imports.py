@@ -12,6 +12,7 @@ def test_gui_imports() -> None:
     from modbus_diagnostic_studio.gui.tabs import (
         ConnectionTab,
         DecoderTab,
+        MasterReadTab,
         ProfilesTab,
     )
 
@@ -19,4 +20,5 @@ def test_gui_imports() -> None:
     assert MainWindow.__name__ == "MainWindow"
     assert ConnectionTab.__name__ == "ConnectionTab"
     assert DecoderTab.__name__ == "DecoderTab"
+    assert MasterReadTab.__name__ == "MasterReadTab"
     assert ProfilesTab.__name__ == "ProfilesTab"
