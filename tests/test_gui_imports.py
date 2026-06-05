@@ -14,6 +14,7 @@ def test_gui_imports() -> None:
         DecoderTab,
         MasterReadTab,
         ProfilesTab,
+        SnifferDiagnosticTab,
     )
 
     assert callable(run_app)
@@ -22,3 +23,4 @@ def test_gui_imports() -> None:
     assert DecoderTab.__name__ == "DecoderTab"
     assert MasterReadTab.__name__ == "MasterReadTab"
     assert ProfilesTab.__name__ == "ProfilesTab"
+    assert SnifferDiagnosticTab.__name__ == "SnifferDiagnosticTab"

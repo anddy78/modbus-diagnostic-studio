@@ -27,8 +27,17 @@ class PortReservation:
 class ModeManager:
     """Track active COM port reservations across runtime modes."""
 
+    _shared_reservations: dict[str, PortReservation] = {}
+
     def __init__(self) -> None:
-        self._reservations: dict[str, PortReservation] = {}
+        self._reservations = self._shared_reservations
+        self._owned_reservation_keys: set[tuple[str, str]] = set()
+
+    def __del__(self) -> None:
+        for port, owner in list(self._owned_reservation_keys):
+            existing = self._reservations.get(port)
+            if existing is not None and existing.owner == owner:
+                del self._reservations[port]
 
     def current_reservations(self) -> dict[str, PortReservation]:
         """Return a copy of current reservations by normalized port."""
@@ -53,6 +62,7 @@ class ModeManager:
             port=normalized_port,
             owner=owner,
         )
+        self._owned_reservation_keys.add((normalized_port, owner))
 
     def release(self, port: str, owner: str | None = None) -> None:
         """Release a port reservation. Missing ports are ignored."""
@@ -65,12 +75,14 @@ class ModeManager:
                 f"Port {normalized_port} is reserved by {existing.owner}, not {owner}"
             )
         del self._reservations[normalized_port]
+        self._owned_reservation_keys.discard((normalized_port, existing.owner))
 
     def release_owner(self, owner: str) -> None:
         """Release all reservations held by owner."""
         for port, reservation in list(self._reservations.items()):
             if reservation.owner == owner:
                 del self._reservations[port]
+                self._owned_reservation_keys.discard((port, owner))
 
     def is_reserved(self, port: str) -> bool:
         """Return True if the port is currently reserved."""
