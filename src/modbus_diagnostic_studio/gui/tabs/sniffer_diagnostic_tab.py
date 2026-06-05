@@ -8,6 +8,7 @@ from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QGridLayout,
     QHBoxLayout,
@@ -23,6 +24,12 @@ from PySide6.QtWidgets import (
 from modbus_diagnostic_studio.models.communication_profile import CommunicationProfile
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
 from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
+from modbus_diagnostic_studio.sniffer.capture_writer import (
+    write_events_csv,
+    write_events_jsonl,
+    write_exchanges_csv,
+    write_exchanges_jsonl,
+)
 from modbus_diagnostic_studio.sniffer.communication_profiles import (
     list_builtin_communication_profiles,
     load_all_builtin_communication_profiles,
@@ -129,6 +136,7 @@ class SnifferDiagnosticTab(QWidget):
         self._worker: SnifferWorker | None = None
         self._running = False
         self._reserved_port: str | None = None
+        self._last_snapshot: PassiveSnifferSnapshot | None = None
         # TODO: inject an application-wide ModeManager from ApplicationState.
         self._mode_manager = ModeManager()
 
@@ -171,6 +179,15 @@ class SnifferDiagnosticTab(QWidget):
         self.stop_button.setEnabled(False)
         self.clear_button = QPushButton("Clear")
         self.clear_button.clicked.connect(self.clear_view)
+
+        self.export_events_csv_button = QPushButton("Export Events CSV")
+        self.export_events_csv_button.clicked.connect(self.export_events_csv)
+        self.export_events_jsonl_button = QPushButton("Export Events JSONL")
+        self.export_events_jsonl_button.clicked.connect(self.export_events_jsonl)
+        self.export_exchanges_csv_button = QPushButton("Export Exchanges CSV")
+        self.export_exchanges_csv_button.clicked.connect(self.export_exchanges_csv)
+        self.export_exchanges_jsonl_button = QPushButton("Export Exchanges JSONL")
+        self.export_exchanges_jsonl_button.clicked.connect(self.export_exchanges_jsonl)
 
         self.frames_count_label = QLabel("0")
         self.crc_ok_label = QLabel("0")
@@ -230,6 +247,12 @@ class SnifferDiagnosticTab(QWidget):
         button_row.addWidget(self.stop_button)
         button_row.addWidget(self.clear_button)
 
+        export_row = QHBoxLayout()
+        export_row.addWidget(self.export_events_csv_button)
+        export_row.addWidget(self.export_events_jsonl_button)
+        export_row.addWidget(self.export_exchanges_csv_button)
+        export_row.addWidget(self.export_exchanges_jsonl_button)
+
         stats = QGridLayout()
         stats.addWidget(QLabel("Frames"), 0, 0)
         stats.addWidget(self.frames_count_label, 0, 1)
@@ -263,6 +286,7 @@ class SnifferDiagnosticTab(QWidget):
         layout.addWidget(self.status_label)
         layout.addLayout(form)
         layout.addLayout(button_row)
+        layout.addLayout(export_row)
         layout.addLayout(stats)
         layout.addWidget(QLabel("Recent frames"))
         layout.addWidget(self.frames_table)
@@ -368,6 +392,7 @@ class SnifferDiagnosticTab(QWidget):
 
     @Slot(object)
     def _handle_snapshot(self, snapshot: PassiveSnifferSnapshot) -> None:
+        self._last_snapshot = snapshot
         self.status_label.setText("Passive sniffer running. Read-only serial capture.")
         self._populate_stats(snapshot)
         self._populate_frames(snapshot)
@@ -415,6 +440,76 @@ class SnifferDiagnosticTab(QWidget):
         if profile_id == "__all__":
             return load_all_builtin_communication_profiles()
         return [load_builtin_communication_profile(str(profile_id))]
+
+    # ── export ────────────────────────────────────────────────────────────
+
+    def export_events_csv(self) -> None:
+        """Export captured frame events to a CSV file."""
+        events = self._last_snapshot.events if self._last_snapshot is not None else []
+        if not events:
+            self.status_label.setText("No events to export.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Events CSV", "sniffer_events.csv", "CSV files (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            write_events_csv(path, events)
+            self.status_label.setText(f"Events exported to: {path}")
+        except Exception as exc:
+            self.status_label.setText(f"Export error: {exc}")
+
+    def export_events_jsonl(self) -> None:
+        """Export captured frame events to a JSONL file."""
+        events = self._last_snapshot.events if self._last_snapshot is not None else []
+        if not events:
+            self.status_label.setText("No events to export.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Events JSONL", "sniffer_events.jsonl", "JSONL files (*.jsonl)"
+        )
+        if not path:
+            return
+        try:
+            write_events_jsonl(path, events)
+            self.status_label.setText(f"Events exported to: {path}")
+        except Exception as exc:
+            self.status_label.setText(f"Export error: {exc}")
+
+    def export_exchanges_csv(self) -> None:
+        """Export matched exchanges to a CSV file."""
+        exchanges = self._last_snapshot.exchanges if self._last_snapshot is not None else []
+        if not exchanges:
+            self.status_label.setText("No exchanges to export.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Exchanges CSV", "sniffer_exchanges.csv", "CSV files (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            write_exchanges_csv(path, exchanges)
+            self.status_label.setText(f"Exchanges exported to: {path}")
+        except Exception as exc:
+            self.status_label.setText(f"Export error: {exc}")
+
+    def export_exchanges_jsonl(self) -> None:
+        """Export matched exchanges to a JSONL file."""
+        exchanges = self._last_snapshot.exchanges if self._last_snapshot is not None else []
+        if not exchanges:
+            self.status_label.setText("No exchanges to export.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Exchanges JSONL", "sniffer_exchanges.jsonl", "JSONL files (*.jsonl)"
+        )
+        if not path:
+            return
+        try:
+            write_exchanges_jsonl(path, exchanges)
+            self.status_label.setText(f"Exchanges exported to: {path}")
+        except Exception as exc:
+            self.status_label.setText(f"Export error: {exc}")
 
     def _populate_stats(self, snapshot: PassiveSnifferSnapshot) -> None:
         stats = snapshot.stats

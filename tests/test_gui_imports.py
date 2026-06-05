@@ -31,6 +31,15 @@ def test_gui_imports() -> None:
     assert callable(apply_theme)
 
 
+def test_sniffer_tab_export_methods_exist() -> None:
+    from modbus_diagnostic_studio.gui.tabs.sniffer_diagnostic_tab import SnifferDiagnosticTab
+
+    assert callable(SnifferDiagnosticTab.export_events_csv)
+    assert callable(SnifferDiagnosticTab.export_events_jsonl)
+    assert callable(SnifferDiagnosticTab.export_exchanges_csv)
+    assert callable(SnifferDiagnosticTab.export_exchanges_jsonl)
+
+
 def test_meters_tab_grouping() -> None:
     from modbus_diagnostic_studio.gui.tabs.meters_tab import _classify_variable
 
