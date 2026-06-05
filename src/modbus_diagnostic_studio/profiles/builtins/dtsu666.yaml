@@ -1,0 +1,187 @@
+profile_id: dtsu666
+name: Chint DTSU666 / DSSU666
+description: 'Imported/adapted from modbus_meter_bridge config/driver_profiles/chint_dtsu666_draft.yaml. Source profile id
+  was chint_dtsu666_draft. Refined DTSU666 profile based on uploaded Chint manuals. Requires validation against exact variant
+  and wiring mode. RS485 Modbus RTU. Read command is 03H. Write command is 10H. Factory Modbus parameters may be 9600 bps,
+  N.1, address 1 depending on variant/customization. Electrical data table uses hexadecimal addresses. Single-precision floating
+  point uses IEEE754. Float order is ABCD, high byte first. Some communication values are secondary-side values and may require
+  CT/PT ratio handling. Profile is refined from manual but not validated against hardware. Address values below are decimal
+  equivalents of documented hexadecimal addresses. Manual labels some values as secondary-side data. CT/PT ratio handling
+  may be needed later. {''Scale follows table hints'': ''V x0.1, A x0.001, W/var x0.1, PF x0.001, Hz x0.01, kWh to Wh x1000.''}
+  Depending on actual protocol implementation, scale may need to be set to 1 if the meter already returns engineering units.'
+status: partial_imported_from_bridge
+default_function: 3
+byte_order: big
+word_order: normal
+base_addressing: zero_based
+registers_per_value: 2
+max_registers_per_request: 80
+registers:
+- variable: voltage_ll_l12_v
+  address: 8192
+  type: float32
+  unit: V
+  scale: 0.1
+  description: Uab line voltage
+- variable: voltage_ll_l23_v
+  address: 8194
+  type: float32
+  unit: V
+  scale: 0.1
+  description: Ubc line voltage
+- variable: voltage_ll_l31_v
+  address: 8196
+  type: float32
+  unit: V
+  scale: 0.1
+  description: Uca line voltage
+- variable: voltage_ln_l1_v
+  address: 8198
+  type: float32
+  unit: V
+  scale: 0.1
+  description: Ua phase voltage, invalid for three-phase three-wire
+- variable: voltage_ln_l2_v
+  address: 8200
+  type: float32
+  unit: V
+  scale: 0.1
+  description: Ub phase voltage
+- variable: voltage_ln_l3_v
+  address: 8202
+  type: float32
+  unit: V
+  scale: 0.1
+  description: Uc phase voltage
+- variable: current_l1_a
+  address: 8204
+  type: float32
+  unit: A
+  scale: 0.001
+  description: Ia current
+- variable: current_l2_a
+  address: 8206
+  type: float32
+  unit: A
+  scale: 0.001
+  description: Ib current
+- variable: current_l3_a
+  address: 8208
+  type: float32
+  unit: A
+  scale: 0.001
+  description: Ic current
+- variable: power_total_w
+  address: 8210
+  type: float32
+  unit: W
+  scale: 0.1
+  description: Pt combined active power
+- variable: power_l1_w
+  address: 8212
+  type: float32
+  unit: W
+  scale: 0.1
+  description: Pa phase A active power
+- variable: power_l2_w
+  address: 8214
+  type: float32
+  unit: W
+  scale: 0.1
+  description: Pb phase B active power
+- variable: power_l3_w
+  address: 8216
+  type: float32
+  unit: W
+  scale: 0.1
+  description: Pc phase C active power
+- variable: reactive_total_var
+  address: 8218
+  type: float32
+  unit: var
+  scale: 0.1
+  description: Qt combined reactive power
+- variable: reactive_l1_var
+  address: 8220
+  type: float32
+  unit: var
+  scale: 0.1
+  description: Qa phase A reactive power
+- variable: reactive_l2_var
+  address: 8222
+  type: float32
+  unit: var
+  scale: 0.1
+  description: Qb phase B reactive power
+- variable: reactive_l3_var
+  address: 8224
+  type: float32
+  unit: var
+  scale: 0.1
+  description: Qc phase C reactive power
+- variable: cosphi_total
+  address: 8234
+  type: float32
+  unit: ''
+  scale: 0.001
+  description: PFt combined power factor
+- variable: cosphi_l1
+  address: 8236
+  type: float32
+  unit: ''
+  scale: 0.001
+  description: PFa phase A power factor
+- variable: cosphi_l2
+  address: 8238
+  type: float32
+  unit: ''
+  scale: 0.001
+  description: PFb phase B power factor
+- variable: cosphi_l3
+  address: 8240
+  type: float32
+  unit: ''
+  scale: 0.001
+  description: PFc phase C power factor
+- variable: frequency_hz
+  address: 8260
+  type: float32
+  unit: Hz
+  scale: 0.01
+  description: Frequency
+- variable: energy_import_total_wh
+  address: 4126
+  type: float32
+  unit: kWh
+  scale: 1000
+  description: Total forward active energy converted from kWh to Wh
+- variable: energy_l1_wh
+  address: 4128
+  type: float32
+  unit: kWh
+  scale: 1000
+  description: A phase forward active energy converted from kWh to Wh
+- variable: energy_l2_wh
+  address: 4130
+  type: float32
+  unit: kWh
+  scale: 1000
+  description: B phase forward active energy converted from kWh to Wh
+- variable: energy_l3_wh
+  address: 4132
+  type: float32
+  unit: kWh
+  scale: 1000
+  description: C phase forward active energy converted from kWh to Wh
+- variable: energy_total_wh
+  address: 4134
+  type: float32
+  unit: kWh
+  scale: 1000
+  description: Net forward active energy converted from kWh to Wh
+- variable: energy_export_total_wh
+  address: 4136
+  type: float32
+  unit: kWh
+  scale: 1000
+  description: Total reverse active energy converted from kWh to Wh

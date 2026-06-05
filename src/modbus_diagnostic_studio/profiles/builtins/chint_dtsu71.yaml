@@ -1,7 +1,14 @@
 profile_id: chint_dtsu71
 name: Chint DTSU71
+description: Imported/adapted from modbus_meter_bridge config/driver_profiles/chint_dtsu71.yaml. Observed Chint DTSU71 profile
+  from Huawei SmartLogger Modbus RTU captures. Preliminary map, validated against field sniffer data. Huawei SmartLogger configured
+  as DTSU71 queried slave 11 using FC03. Fast block observed as FC03 address 2102 quantity 42. Slow energy block observed
+  as FC03 address 2158 quantity 66. Values are IEEE754 float32. Each value uses 2 consecutive 16-bit registers. Most significant
+  register first. First energy group 2158..2180 is classified with good confidence from import/export/limited export field
+  captures. This profile is preliminary and observed, not yet confirmed against an official Chint register manual. Instantaneous
+  block 2102..2142 maps current, voltage, frequency, P, Q and S. Energy block 2158..2180 maps active net/import/export total
+  and phases with good confidence. Auxiliary block 2182..2222 is intentionally not included until officially identified.
 status: observed_from_huawei_smartlogger
-description: Observed/non-official DTSU71 profile from Huawei SmartLogger traffic; register names are conservative and should be verified against field data.
 default_function: 3
 byte_order: big
 word_order: normal
@@ -9,123 +16,327 @@ base_addressing: zero_based
 registers_per_value: 2
 max_registers_per_request: 66
 registers:
-  - variable: current_l1_a
-    address: 2102
-    type: float32
-    unit: A
-  - variable: current_l2_a
-    address: 2104
-    type: float32
-    unit: A
-  - variable: current_l3_a
-    address: 2106
-    type: float32
-    unit: A
-  - variable: voltage_ln_l1_v
-    address: 2108
-    type: float32
-    unit: V
-  - variable: voltage_ln_l2_v
-    address: 2110
-    type: float32
-    unit: V
-  - variable: voltage_ln_l3_v
-    address: 2112
-    type: float32
-    unit: V
-  - variable: voltage_ln_avg_v
-    address: 2114
-    type: float32
-    unit: V
-  - variable: voltage_ll_l12_v
-    address: 2116
-    type: float32
-    unit: V
-  - variable: voltage_ll_l23_v
-    address: 2118
-    type: float32
-    unit: V
-  - variable: voltage_ll_l31_v
-    address: 2120
-    type: float32
-    unit: V
-  - variable: voltage_ll_avg_v
-    address: 2122
-    type: float32
-    unit: V
-  - variable: frequency_hz
-    address: 2124
-    type: float32
-    unit: Hz
-  - variable: power_total_w
-    address: 2126
-    type: float32
-    unit: W
-  - variable: power_l1_w
-    address: 2128
-    type: float32
-    unit: W
-  - variable: power_l2_w
-    address: 2130
-    type: float32
-    unit: W
-  - variable: power_l3_w
-    address: 2132
-    type: float32
-    unit: W
-  - variable: reactive_total_var
-    address: 2134
-    type: float32
-    unit: var
-  - variable: reactive_l1_var
-    address: 2136
-    type: float32
-    unit: var
-  - variable: reactive_l2_var
-    address: 2138
-    type: float32
-    unit: var
-  - variable: reactive_l3_var
-    address: 2140
-    type: float32
-    unit: var
-  - variable: apparent_total_va
-    address: 2142
-    type: float32
-    unit: VA
-  - variable: active_energy_net_total_kwh
-    address: 2158
-    type: float32
-    unit: kWh
-  - variable: active_energy_import_total_kwh
-    address: 2166
-    type: float32
-    unit: kWh
-  - variable: active_energy_export_total_kwh
-    address: 2174
-    type: float32
-    unit: kWh
-  - variable: active_energy_aux_net_total
-    address: 2182
-    type: float32
-    unit: kWh
-  - variable: active_energy_aux_positive_total
-    address: 2190
-    type: float32
-    unit: kWh
-  - variable: active_energy_aux_negative_total
-    address: 2198
-    type: float32
-    unit: kWh
-  - variable: reactive_energy_net_total_kvarh
-    address: 2206
-    type: float32
-    unit: kvarh
-  - variable: reactive_energy_positive_total_kvarh
-    address: 2214
-    type: float32
-    unit: kvarh
-  - variable: reactive_energy_negative_total_kvarh
-    address: 2222
-    type: float32
-    unit: kvarh
+- variable: current_l1_a
+  address: 2102
+  type: float32
+  unit: A
+  scale: 1
+  description: Current L1 / phase A
+- variable: current_l2_a
+  address: 2104
+  type: float32
+  unit: A
+  scale: 1
+  description: Current L2 / phase B
+- variable: current_l3_a
+  address: 2106
+  type: float32
+  unit: A
+  scale: 1
+  description: Current L3 / phase C
+- variable: voltage_ln_l1_v
+  address: 2108
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L1-N / phase A-N
+- variable: voltage_ln_l2_v
+  address: 2110
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L2-N / phase B-N
+- variable: voltage_ln_l3_v
+  address: 2112
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L3-N / phase C-N
+- variable: voltage_ln_avg_v
+  address: 2114
+  type: float32
+  unit: V
+  scale: 1
+  description: Observed average phase-neutral voltage
+- variable: voltage_ll_l12_v
+  address: 2116
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L1-L2 / A-B
+- variable: voltage_ll_l23_v
+  address: 2118
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L2-L3 / B-C
+- variable: voltage_ll_l31_v
+  address: 2120
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L3-L1 / C-A
+- variable: voltage_ll_avg_v
+  address: 2122
+  type: float32
+  unit: V
+  scale: 1
+  description: Observed average line-line voltage
+- variable: frequency_hz
+  address: 2124
+  type: float32
+  unit: Hz
+  scale: 1
+  description: Frequency
+- variable: power_total_w
+  address: 2126
+  type: float32
+  unit: W
+  scale: 1
+  description: Total active power
+- variable: power_l1_w
+  address: 2128
+  type: float32
+  unit: W
+  scale: 1
+  description: Active power L1 / phase A
+- variable: power_l2_w
+  address: 2130
+  type: float32
+  unit: W
+  scale: 1
+  description: Active power L2 / phase B
+- variable: power_l3_w
+  address: 2132
+  type: float32
+  unit: W
+  scale: 1
+  description: Active power L3 / phase C
+- variable: reactive_total_var
+  address: 2134
+  type: float32
+  unit: var
+  scale: 1
+  description: Total reactive power
+- variable: reactive_l1_var
+  address: 2136
+  type: float32
+  unit: var
+  scale: 1
+  description: Reactive power L1 / phase A
+- variable: reactive_l2_var
+  address: 2138
+  type: float32
+  unit: var
+  scale: 1
+  description: Reactive power L2 / phase B
+- variable: reactive_l3_var
+  address: 2140
+  type: float32
+  unit: var
+  scale: 1
+  description: Reactive power L3 / phase C
+- variable: apparent_total_va
+  address: 2142
+  type: float32
+  unit: VA
+  scale: 1
+  description: Total apparent power
+- variable: active_energy_net_total_kwh
+  address: 2158
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed/probable active net energy total
+- variable: active_energy_net_l1_kwh
+  address: 2160
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed/probable active net energy L1
+- variable: active_energy_net_l2_kwh
+  address: 2162
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed/probable active net energy L2
+- variable: active_energy_net_l3_kwh
+  address: 2164
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed/probable active net energy L3
+- variable: active_energy_import_total_kwh
+  address: 2166
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed/probable active import energy total
+- variable: active_energy_import_l1_kwh
+  address: 2168
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed/probable active import energy L1
+- variable: active_energy_import_l2_kwh
+  address: 2170
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed/probable active import energy L2
+- variable: active_energy_import_l3_kwh
+  address: 2172
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed/probable active import energy L3
+- variable: active_energy_export_total_kwh
+  address: 2174
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed/probable active export energy total
+- variable: active_energy_export_l1_kwh
+  address: 2176
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed/probable active export energy L1
+- variable: active_energy_export_l2_kwh
+  address: 2178
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed/probable active export energy L2
+- variable: active_energy_export_l3_kwh
+  address: 2180
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed/probable active export energy L3
+- variable: active_energy_aux_net_total
+  address: 2182
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed auxiliary net active-like energy total. Official semantic name pending.
+- variable: active_energy_aux_net_l1
+  address: 2184
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed auxiliary net active-like energy L1. Official semantic name pending.
+- variable: active_energy_aux_net_l2
+  address: 2186
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed auxiliary net active-like energy L2. Official semantic name pending.
+- variable: active_energy_aux_net_l3
+  address: 2188
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed auxiliary net active-like energy L3. Official semantic name pending.
+- variable: active_energy_aux_positive_total
+  address: 2190
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed auxiliary positive active-like energy total. Official semantic name pending.
+- variable: active_energy_aux_positive_l1
+  address: 2192
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed auxiliary positive active-like energy L1. Official semantic name pending.
+- variable: active_energy_aux_positive_l2
+  address: 2194
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed auxiliary positive active-like energy L2. Official semantic name pending.
+- variable: active_energy_aux_positive_l3
+  address: 2196
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed auxiliary positive active-like energy L3. Official semantic name pending.
+- variable: active_energy_aux_negative_total
+  address: 2198
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed auxiliary negative active-like energy total. Official semantic name pending.
+- variable: active_energy_aux_negative_l1
+  address: 2200
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed auxiliary negative active-like energy L1. Official semantic name pending.
+- variable: active_energy_aux_negative_l2
+  address: 2202
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed auxiliary negative active-like energy L2. Official semantic name pending.
+- variable: active_energy_aux_negative_l3
+  address: 2204
+  type: float32
+  unit: kWh
+  scale: 1
+  description: Observed auxiliary negative active-like energy L3. Official semantic name pending.
+- variable: reactive_energy_net_total_kvarh
+  address: 2206
+  type: float32
+  unit: kvarh
+  scale: 1
+  description: Observed/probable total reactive electricity shown by Huawei UI.
+- variable: reactive_energy_net_l1_kvarh
+  address: 2208
+  type: float32
+  unit: kvarh
+  scale: 1
+  description: Observed/probable reactive net energy L1.
+- variable: reactive_energy_net_l2_kvarh
+  address: 2210
+  type: float32
+  unit: kvarh
+  scale: 1
+  description: Observed/probable reactive net energy L2.
+- variable: reactive_energy_net_l3_kvarh
+  address: 2212
+  type: float32
+  unit: kvarh
+  scale: 1
+  description: Observed/probable reactive net energy L3.
+- variable: reactive_energy_positive_total_kvarh
+  address: 2214
+  type: float32
+  unit: kvarh
+  scale: 1
+  description: Observed/probable total positive reactive electricity shown by Huawei UI.
+- variable: reactive_energy_positive_l1_kvarh
+  address: 2216
+  type: float32
+  unit: kvarh
+  scale: 1
+  description: Observed/probable positive reactive energy L1.
+- variable: reactive_energy_positive_l2_kvarh
+  address: 2218
+  type: float32
+  unit: kvarh
+  scale: 1
+  description: Observed/probable positive reactive energy L2.
+- variable: reactive_energy_positive_l3_kvarh
+  address: 2220
+  type: float32
+  unit: kvarh
+  scale: 1
+  description: Observed/probable positive reactive energy L3.
+- variable: reactive_energy_negative_total_kvarh
+  address: 2222
+  type: float32
+  unit: kvarh
+  scale: 1
+  description: Observed/probable total negative reactive electricity shown by Huawei UI.

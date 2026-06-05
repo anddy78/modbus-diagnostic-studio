@@ -1,11 +1,258 @@
-﻿profile_id: eastron_sdm630
-name: Eastron SDM630
-status: placeholder
-description: Placeholder profile. To be completed from validated reference data.
+profile_id: eastron_sdm630
+name: Eastron SDM630 Modbus V2
+description: Imported/adapted from modbus_meter_bridge config/driver_profiles/eastron_sdm630_draft.yaml. Source profile id
+  was eastron_sdm630_draft. Refined SDM630 profile based on uploaded SDM630 Modbus manual. Still requires validation against
+  real meter. RS485 Modbus RTU. Input registers are read with FC04. Values are IEEE754 float32. Each value uses 2 consecutive
+  16-bit registers. Most significant register first by default. Register order can be changed in meter settings, so word_order
+  may need to be swapped in field. Maximum transaction is 40 values / 80 registers. Baudrates include 2400, 4800, 9600, 19200,
+  38400 and 115200 depending on document section/version. Profile is refined from manual but not validated against hardware.
+  Power values are W/VA/var directly. Energy values are documented in kWh/kvarh and converted to Wh/varh by scale 1000. Some
+  variables may return zero depending on wiring mode 1P2W/3P3W/3P4W.
+status: partial_imported_from_bridge
 default_function: 4
 byte_order: big
 word_order: normal
 base_addressing: zero_based
 registers_per_value: 2
-max_registers_per_request: 64
-registers: []
+max_registers_per_request: 80
+registers:
+- variable: voltage_ln_l1_v
+  address: 0
+  type: float32
+  unit: V
+  scale: 1
+  description: Phase 1 line-to-neutral volts
+- variable: voltage_ln_l2_v
+  address: 2
+  type: float32
+  unit: V
+  scale: 1
+  description: Phase 2 line-to-neutral volts
+- variable: voltage_ln_l3_v
+  address: 4
+  type: float32
+  unit: V
+  scale: 1
+  description: Phase 3 line-to-neutral volts
+- variable: current_l1_a
+  address: 6
+  type: float32
+  unit: A
+  scale: 1
+  description: Current L1
+- variable: current_l2_a
+  address: 8
+  type: float32
+  unit: A
+  scale: 1
+  description: Current L2
+- variable: current_l3_a
+  address: 10
+  type: float32
+  unit: A
+  scale: 1
+  description: Current L3
+- variable: power_l1_w
+  address: 12
+  type: float32
+  unit: W
+  scale: 1
+  description: Active power L1
+- variable: power_l2_w
+  address: 14
+  type: float32
+  unit: W
+  scale: 1
+  description: Active power L2
+- variable: power_l3_w
+  address: 16
+  type: float32
+  unit: W
+  scale: 1
+  description: Active power L3
+- variable: apparent_l1_va
+  address: 18
+  type: float32
+  unit: VA
+  scale: 1
+  description: Apparent power L1
+- variable: apparent_l2_va
+  address: 20
+  type: float32
+  unit: VA
+  scale: 1
+  description: Apparent power L2
+- variable: apparent_l3_va
+  address: 22
+  type: float32
+  unit: VA
+  scale: 1
+  description: Apparent power L3
+- variable: reactive_l1_var
+  address: 24
+  type: float32
+  unit: var
+  scale: 1
+  description: Reactive power L1
+- variable: reactive_l2_var
+  address: 26
+  type: float32
+  unit: var
+  scale: 1
+  description: Reactive power L2
+- variable: reactive_l3_var
+  address: 28
+  type: float32
+  unit: var
+  scale: 1
+  description: Reactive power L3
+- variable: cosphi_l1
+  address: 30
+  type: float32
+  unit: ''
+  scale: 1
+  description: Power factor L1
+- variable: cosphi_l2
+  address: 32
+  type: float32
+  unit: ''
+  scale: 1
+  description: Power factor L2
+- variable: cosphi_l3
+  address: 34
+  type: float32
+  unit: ''
+  scale: 1
+  description: Power factor L3
+- variable: phase_sequence
+  address: 36
+  type: float32
+  unit: degrees
+  scale: 1
+  description: Phase angle / phase information, use with caution
+- variable: voltage_ll_l12_v
+  address: 200
+  type: float32
+  unit: V
+  scale: 1
+  description: Line voltage L1-L2
+- variable: voltage_ll_l23_v
+  address: 202
+  type: float32
+  unit: V
+  scale: 1
+  description: Line voltage L2-L3
+- variable: voltage_ll_l31_v
+  address: 204
+  type: float32
+  unit: V
+  scale: 1
+  description: Line voltage L3-L1
+- variable: current_sum_a
+  address: 48
+  type: float32
+  unit: A
+  scale: 1
+  description: Neutral current / current sum depending on wiring mode
+- variable: power_total_w
+  address: 52
+  type: float32
+  unit: W
+  scale: 1
+  description: Total active power
+- variable: apparent_total_va
+  address: 56
+  type: float32
+  unit: VA
+  scale: 1
+  description: Total apparent power
+- variable: reactive_total_var
+  address: 60
+  type: float32
+  unit: var
+  scale: 1
+  description: Total reactive power
+- variable: cosphi_total
+  address: 62
+  type: float32
+  unit: ''
+  scale: 1
+  description: Total power factor, not directly used by ElectricalModel yet
+- variable: frequency_hz
+  address: 70
+  type: float32
+  unit: Hz
+  scale: 1
+  description: Frequency
+- variable: energy_import_total_wh
+  address: 72
+  type: float32
+  unit: kWh
+  scale: 1000
+  description: Import active energy converted from kWh to Wh
+- variable: energy_export_total_wh
+  address: 74
+  type: float32
+  unit: kWh
+  scale: 1000
+  description: Export active energy converted from kWh to Wh
+- variable: reactive_energy_inductive_total_varh
+  address: 76
+  type: float32
+  unit: kvarh
+  scale: 1000
+  description: Import reactive energy converted from kvarh to varh
+- variable: reactive_energy_capacitive_total_varh
+  address: 78
+  type: float32
+  unit: kvarh
+  scale: 1000
+  description: Export reactive energy converted from kvarh to varh
+- variable: energy_total_wh
+  address: 342
+  type: float32
+  unit: kWh
+  scale: 1000
+  description: Total active energy converted from kWh to Wh
+- variable: reactive_energy_total_varh
+  address: 344
+  type: float32
+  unit: kvarh
+  scale: 1000
+  description: Total reactive energy converted from kvarh to varh
+- variable: thd_voltage_l1_percent
+  address: 234
+  type: float32
+  unit: '%'
+  scale: 1
+  description: Voltage THD L1, verify address with hardware/manual table
+- variable: thd_voltage_l2_percent
+  address: 236
+  type: float32
+  unit: '%'
+  scale: 1
+  description: Voltage THD L2, verify address with hardware/manual table
+- variable: thd_voltage_l3_percent
+  address: 238
+  type: float32
+  unit: '%'
+  scale: 1
+  description: Voltage THD L3, verify address with hardware/manual table
+- variable: thd_current_l1_percent
+  address: 240
+  type: float32
+  unit: '%'
+  scale: 1
+  description: Current THD L1, verify address with hardware/manual table
+- variable: thd_current_l2_percent
+  address: 242
+  type: float32
+  unit: '%'
+  scale: 1
+  description: Current THD L2, verify address with hardware/manual table
+- variable: thd_current_l3_percent
+  address: 244
+  type: float32
+  unit: '%'
+  scale: 1
+  description: Current THD L3, verify address with hardware/manual table

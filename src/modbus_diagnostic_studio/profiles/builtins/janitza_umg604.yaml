@@ -1,11 +1,236 @@
-﻿profile_id: janitza_umg604
-name: Janitza UMG604
-status: placeholder
-description: Placeholder profile. To be completed from validated reference data.
+profile_id: janitza_umg604
+name: Janitza UMG604 / UMG604-Pro
+description: Imported/adapted from modbus_meter_bridge config/driver_profiles/janitza_umg604.yaml. Source status was validated_for_virtual_output.
+  Main frequently required readings block used by Huawei SmartLogger Janitza profile. Huawei SmartLogger was observed reading
+  FC03 address 19000 quantity 110. Values are IEEE754 float32, 2 Modbus registers per variable. This profile is used as virtual
+  output map.
+status: imported_from_bridge
 default_function: 3
 byte_order: big
 word_order: normal
 base_addressing: zero_based
 registers_per_value: 2
 max_registers_per_request: 110
-registers: []
+registers:
+- variable: voltage_ln_l1_v
+  address: 19000
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L1-N
+- variable: voltage_ln_l2_v
+  address: 19002
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L2-N
+- variable: voltage_ln_l3_v
+  address: 19004
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L3-N
+- variable: voltage_ll_l12_v
+  address: 19006
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L1-L2
+- variable: voltage_ll_l23_v
+  address: 19008
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L2-L3
+- variable: voltage_ll_l31_v
+  address: 19010
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L3-L1
+- variable: current_l1_a
+  address: 19012
+  type: float32
+  unit: A
+  scale: 1
+  description: Current L1
+- variable: current_l2_a
+  address: 19014
+  type: float32
+  unit: A
+  scale: 1
+  description: Current L2
+- variable: current_l3_a
+  address: 19016
+  type: float32
+  unit: A
+  scale: 1
+  description: Current L3
+- variable: current_sum_a
+  address: 19018
+  type: float32
+  unit: A
+  scale: 1
+  description: Vector sum current
+- variable: power_l1_w
+  address: 19020
+  type: float32
+  unit: W
+  scale: 1
+  description: Real power L1
+- variable: power_l2_w
+  address: 19022
+  type: float32
+  unit: W
+  scale: 1
+  description: Real power L2
+- variable: power_l3_w
+  address: 19024
+  type: float32
+  unit: W
+  scale: 1
+  description: Real power L3
+- variable: power_total_w
+  address: 19026
+  type: float32
+  unit: W
+  scale: 1
+  description: Total real power
+- variable: apparent_l1_va
+  address: 19028
+  type: float32
+  unit: VA
+  scale: 1
+  description: Apparent power L1
+- variable: apparent_l2_va
+  address: 19030
+  type: float32
+  unit: VA
+  scale: 1
+  description: Apparent power L2
+- variable: apparent_l3_va
+  address: 19032
+  type: float32
+  unit: VA
+  scale: 1
+  description: Apparent power L3
+- variable: apparent_total_va
+  address: 19034
+  type: float32
+  unit: VA
+  scale: 1
+  description: Total apparent power
+- variable: reactive_l1_var
+  address: 19036
+  type: float32
+  unit: var
+  scale: 1
+  description: Reactive power L1
+- variable: reactive_l2_var
+  address: 19038
+  type: float32
+  unit: var
+  scale: 1
+  description: Reactive power L2
+- variable: reactive_l3_var
+  address: 19040
+  type: float32
+  unit: var
+  scale: 1
+  description: Reactive power L3
+- variable: reactive_total_var
+  address: 19042
+  type: float32
+  unit: var
+  scale: 1
+  description: Total reactive power
+- variable: cosphi_l1
+  address: 19044
+  type: float32
+  unit: ''
+  scale: 1
+  description: Cos phi L1
+- variable: cosphi_l2
+  address: 19046
+  type: float32
+  unit: ''
+  scale: 1
+  description: Cos phi L2
+- variable: cosphi_l3
+  address: 19048
+  type: float32
+  unit: ''
+  scale: 1
+  description: Cos phi L3
+- variable: frequency_hz
+  address: 19050
+  type: float32
+  unit: Hz
+  scale: 1
+  description: Frequency
+- variable: phase_sequence
+  address: 19052
+  type: float32
+  unit: ''
+  scale: 1
+  description: Rotation field
+- variable: energy_l1_wh
+  address: 19054
+  type: float32
+  unit: Wh
+  scale: 1
+  description: Real energy L1
+- variable: energy_l2_wh
+  address: 19056
+  type: float32
+  unit: Wh
+  scale: 1
+  description: Real energy L2
+- variable: energy_l3_wh
+  address: 19058
+  type: float32
+  unit: Wh
+  scale: 1
+  description: Real energy L3
+- variable: energy_total_wh
+  address: 19060
+  type: float32
+  unit: Wh
+  scale: 1
+  description: Total real energy
+- variable: energy_import_total_wh
+  address: 19068
+  type: float32
+  unit: Wh
+  scale: 1
+  description: Total consumed/import energy
+- variable: energy_export_total_wh
+  address: 19076
+  type: float32
+  unit: Wh
+  scale: 1
+  description: Total delivered/export energy
+- variable: apparent_energy_total_vah
+  address: 19084
+  type: float32
+  unit: VAh
+  scale: 1
+  description: Total apparent energy
+- variable: reactive_energy_total_varh
+  address: 19092
+  type: float32
+  unit: varh
+  scale: 1
+  description: Total reactive energy
+- variable: reactive_energy_inductive_total_varh
+  address: 19100
+  type: float32
+  unit: varh
+  scale: 1
+  description: Total inductive reactive energy
+- variable: reactive_energy_capacitive_total_varh
+  address: 19108
+  type: float32
+  unit: varh
+  scale: 1
+  description: Total capacitive reactive energy

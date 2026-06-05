@@ -2,11 +2,16 @@
 
 from dataclasses import replace
 
+import pytest
+
 from modbus_diagnostic_studio.models.profile import (
     ProfileDefinition,
     RegisterDefinition,
 )
-from modbus_diagnostic_studio.profiles.loader import load_builtin_profile
+from modbus_diagnostic_studio.profiles.loader import (
+    list_builtin_profiles,
+    load_builtin_profile,
+)
 from modbus_diagnostic_studio.profiles.validator import validate_profile
 
 
@@ -31,6 +36,11 @@ def test_generic_meter_builtin_has_no_validation_errors() -> None:
 
 def test_chint_dtsu71_builtin_has_no_validation_errors() -> None:
     assert validate_profile(load_builtin_profile("chint_dtsu71")) == []
+
+
+@pytest.mark.parametrize("profile_id", list_builtin_profiles())
+def test_all_builtins_have_no_validation_errors(profile_id: str) -> None:
+    assert validate_profile(load_builtin_profile(profile_id)) == []
 
 
 def test_empty_profile_id_generates_error() -> None:

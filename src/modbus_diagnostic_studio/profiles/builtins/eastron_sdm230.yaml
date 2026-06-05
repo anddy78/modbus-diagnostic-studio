@@ -1,0 +1,95 @@
+profile_id: eastron_sdm230
+name: Eastron SDM230
+description: Imported/adapted from modbus_meter_bridge config/driver_profiles/eastron_sdm230_draft.yaml. Source profile id
+  was eastron_sdm230_draft. Refined SDM230 profile based on uploaded Modbus manual. Still requires validation against real
+  meter. RS485 Modbus RTU. Input registers are read with FC04. Values are IEEE754 float32. Each value uses 2 consecutive 16-bit
+  registers. Most significant register first. Requests must use an even number of registers. Maximum recommended request size
+  is 40 values / 80 registers. Profile is refined from manual but not validated against hardware. Power values are W/VA/var
+  directly. Energy values are documented in kWh/kvarh and converted to Wh/varh by scale 1000. Single-phase meter values are
+  mapped to L1 and total where applicable.
+status: partial_imported_from_bridge
+default_function: 4
+byte_order: big
+word_order: normal
+base_addressing: zero_based
+registers_per_value: 2
+max_registers_per_request: 80
+registers:
+- variable: voltage_ln_l1_v
+  address: 0
+  type: float32
+  unit: V
+  scale: 1
+  description: Voltage L-N
+- variable: current_l1_a
+  address: 6
+  type: float32
+  unit: A
+  scale: 1
+  description: Current
+- variable: power_total_w
+  address: 12
+  type: float32
+  unit: W
+  scale: 1
+  description: Active power
+- variable: apparent_total_va
+  address: 18
+  type: float32
+  unit: VA
+  scale: 1
+  description: Apparent power
+- variable: reactive_total_var
+  address: 24
+  type: float32
+  unit: var
+  scale: 1
+  description: Reactive power
+- variable: cosphi_l1
+  address: 30
+  type: float32
+  unit: ''
+  scale: 1
+  description: Power factor
+- variable: frequency_hz
+  address: 70
+  type: float32
+  unit: Hz
+  scale: 1
+  description: Frequency
+- variable: energy_import_total_wh
+  address: 72
+  type: float32
+  unit: kWh
+  scale: 1000
+  description: Import active energy converted from kWh to Wh
+- variable: energy_export_total_wh
+  address: 74
+  type: float32
+  unit: kWh
+  scale: 1000
+  description: Export active energy converted from kWh to Wh
+- variable: reactive_energy_inductive_total_varh
+  address: 76
+  type: float32
+  unit: kvarh
+  scale: 1000
+  description: Import reactive energy converted from kvarh to varh
+- variable: reactive_energy_capacitive_total_varh
+  address: 78
+  type: float32
+  unit: kvarh
+  scale: 1000
+  description: Export reactive energy converted from kvarh to varh
+- variable: energy_total_wh
+  address: 342
+  type: float32
+  unit: kWh
+  scale: 1000
+  description: Total active energy converted from kWh to Wh
+- variable: reactive_energy_total_varh
+  address: 344
+  type: float32
+  unit: kvarh
+  scale: 1000
+  description: Total reactive energy converted from kvarh to varh
