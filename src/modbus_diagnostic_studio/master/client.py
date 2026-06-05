@@ -125,6 +125,11 @@ class ModbusMasterClient:
             )
         if echo_val not in (0xFF00, 0x0000):
             raise RuntimeError(f"Write single coil echo value invalid: 0x{echo_val:04X}")
+        if echo_val != coil_raw:
+            raise RuntimeError(
+                f"Write single coil echo value mismatch: got 0x{echo_val:04X}, "
+                f"expected 0x{coil_raw:04X}"
+            )
         return echo_val == 0xFF00
 
     def write_single_register(self, slave_id: int, address: int, value: int) -> int:
@@ -162,6 +167,11 @@ class ModbusMasterClient:
         quantity must be 1..1968.
         """
         self._validate_slave_and_address(slave_id, address)
+        for i, v in enumerate(values):
+            if not isinstance(v, bool):
+                raise ValueError(
+                    f"values[{i}] must be bool, got {type(v).__name__} {v!r}"
+                )
         quantity = len(values)
         if not 1 <= quantity <= 1968:
             raise ValueError(f"quantity must be in range 1..1968, got {quantity}")

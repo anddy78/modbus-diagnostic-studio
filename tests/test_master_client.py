@@ -104,6 +104,24 @@ def test_write_single_coil_echo_address_mismatch_raises() -> None:
         client.write_single_coil(slave_id=1, address=0, value=True)
 
 
+def test_write_single_coil_echo_value_mismatch_true_to_false_raises() -> None:
+    # Requested True (0xFF00) but echo returns False (0x0000)
+    response = append_crc(bytes([0x01, 0x05, 0x00, 0x00, 0x00, 0x00]))
+    client = ModbusMasterClient(FakeTransport(response))
+
+    with pytest.raises(RuntimeError, match="mismatch"):
+        client.write_single_coil(slave_id=1, address=0, value=True)
+
+
+def test_write_single_coil_echo_value_mismatch_false_to_true_raises() -> None:
+    # Requested False (0x0000) but echo returns True (0xFF00)
+    response = append_crc(bytes([0x01, 0x05, 0x00, 0x00, 0xFF, 0x00]))
+    client = ModbusMasterClient(FakeTransport(response))
+
+    with pytest.raises(RuntimeError, match="mismatch"):
+        client.write_single_coil(slave_id=1, address=0, value=False)
+
+
 def test_write_single_coil_invalid_crc_raises() -> None:
     valid = append_crc(bytes([0x01, 0x05, 0x00, 0x00, 0xFF, 0x00]))
     bad_crc = valid[:-1] + bytes([valid[-1] ^ 0xFF])
@@ -218,6 +236,29 @@ def test_write_multiple_coils_quantity_over_limit_raises() -> None:
 
     with pytest.raises(ValueError, match="quantity"):
         client.write_multiple_coils(slave_id=1, address=0, values=[True] * 1969)
+
+
+def test_write_multiple_coils_int_values_rejected() -> None:
+    client = ModbusMasterClient(FakeTransport(b""))
+
+    with pytest.raises(ValueError, match="bool"):
+        client.write_multiple_coils(slave_id=1, address=0, values=[1, 0])  # type: ignore[list-item]
+
+
+def test_write_multiple_coils_string_values_rejected() -> None:
+    client = ModbusMasterClient(FakeTransport(b""))
+
+    with pytest.raises(ValueError, match="bool"):
+        client.write_multiple_coils(slave_id=1, address=0, values=["true"])  # type: ignore[list-item]
+
+
+def test_write_multiple_coils_bool_values_accepted() -> None:
+    response = append_crc(bytes([0x01, 0x0F, 0x00, 0x00, 0x00, 0x02]))
+    client = ModbusMasterClient(FakeTransport(response))
+
+    result = client.write_multiple_coils(slave_id=1, address=0, values=[True, False])
+
+    assert result == 2
 
 
 # ── write_multiple_registers (FC16) ──────────────────────────────────────────

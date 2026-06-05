@@ -550,6 +550,9 @@ class AdvancedMasterTab(QWidget):
     # ── read once ─────────────────────────────────────────────────────────
 
     def _read_once(self) -> None:
+        if self._write_busy:
+            self._set_status("Write in progress — wait for it to finish.")
+            return
         if self._reading_busy:
             return
         request = self._build_read_request()
@@ -560,6 +563,9 @@ class AdvancedMasterTab(QWidget):
     # ── continuous read ───────────────────────────────────────────────────
 
     def _start_continuous(self) -> None:
+        if self._write_busy:
+            self._set_status("Write in progress — wait for it to finish.")
+            return
         if self._reading_busy:
             return
         if self.port_combo.currentData() is None:
