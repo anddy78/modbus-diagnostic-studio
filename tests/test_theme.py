@@ -13,6 +13,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
+from modbus_diagnostic_studio.gui.main_window import MainWindow
 from modbus_diagnostic_studio.gui.theme import available_themes, apply_theme
 
 
@@ -39,3 +40,18 @@ def test_apply_theme_light_and_dark_change_palette() -> None:
     assert isinstance(light_window, QColor)
     assert isinstance(dark_window, QColor)
     assert light_window != dark_window
+
+
+def test_main_window_builds_theme_menu_and_apply_theme() -> None:
+    app = QApplication.instance() or QApplication([])
+
+    window = MainWindow()
+
+    assert window.theme_menu is not None
+    assert set(window.theme_actions) == {"system", "light", "dark"}
+
+    window._apply_theme("light")
+    window._apply_theme("dark")
+    window._apply_theme("system")
+
+    assert window._current_theme == "system"

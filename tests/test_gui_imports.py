@@ -35,6 +35,20 @@ def test_gui_imports() -> None:
     assert callable(apply_theme)
 
 
+def test_main_window_theme_references_exist() -> None:
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    from modbus_diagnostic_studio.gui.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+
+    assert window.theme_menu is not None
+    assert set(window.theme_actions) == {"system", "light", "dark"}
+
+
 def test_sniffer_tab_export_methods_exist() -> None:
     from modbus_diagnostic_studio.gui.tabs.sniffer_diagnostic_tab import SnifferDiagnosticTab
 

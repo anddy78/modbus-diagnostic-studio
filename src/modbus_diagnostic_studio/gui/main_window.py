@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
 
 from modbus_diagnostic_studio.gui.tabs.advanced_master_tab import AdvancedMasterTab
@@ -28,6 +29,8 @@ class MainWindow(QMainWindow):
 
         self._current_theme = "system"
         self.app_state = ApplicationState()
+        self.theme_menu = self.menuBar().addMenu("Theme")
+        self.theme_actions: dict[str, QAction] = {}
 
         tabs = QTabWidget()
         tabs.addTab(ConnectionTab(), "Connection")
@@ -45,12 +48,14 @@ class MainWindow(QMainWindow):
 
     def _build_theme_menu(self) -> None:
         """Create a simple theme selector menu."""
-        theme_menu = self.menuBar().addMenu("Theme")
+        self.theme_menu.clear()
+        self.theme_actions.clear()
         for theme_name in available_themes():
-            action = theme_menu.addAction(theme_name.capitalize())
+            action = self.theme_menu.addAction(theme_name.capitalize())
             action.setCheckable(True)
-            action.setChecked(theme_name == self._current_theme)
             action.triggered.connect(lambda checked=False, name=theme_name: self._apply_theme(name))
+            self.theme_actions[theme_name] = action
+        self._sync_theme_menu()
 
     def _apply_theme(self, theme_name: str) -> None:
         """Apply the selected theme to the running QApplication."""
@@ -63,8 +68,5 @@ class MainWindow(QMainWindow):
 
     def _sync_theme_menu(self) -> None:
         """Update check marks in the theme menu."""
-        theme_menu = self.menuBar().actions()[0].menu()
-        if theme_menu is None:
-            return
-        for action in theme_menu.actions():
-            action.setChecked(action.text().lower() == self._current_theme)
+        for theme_name, action in self.theme_actions.items():
+            action.setChecked(theme_name == self._current_theme)
