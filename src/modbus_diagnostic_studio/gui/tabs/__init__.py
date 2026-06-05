@@ -6,6 +6,7 @@ from modbus_diagnostic_studio.gui.tabs.decoder_tab import DecoderTab
 from modbus_diagnostic_studio.gui.tabs.master_read_tab import MasterReadTab
 from modbus_diagnostic_studio.gui.tabs.meters_tab import MetersTab
 from modbus_diagnostic_studio.gui.tabs.profiles_tab import ProfilesTab
+from modbus_diagnostic_studio.gui.tabs.slave_simulator_tab import SlaveSimulatorTab
 from modbus_diagnostic_studio.gui.tabs.sniffer_diagnostic_tab import (
     SnifferDiagnosticTab,
 )
@@ -17,5 +18,6 @@ __all__ = [
     "MasterReadTab",
     "MetersTab",
     "ProfilesTab",
+    "SlaveSimulatorTab",
     "SnifferDiagnosticTab",
 ]

@@ -16,6 +16,7 @@ def test_gui_imports() -> None:
         MasterReadTab,
         MetersTab,
         ProfilesTab,
+        SlaveSimulatorTab,
         SnifferDiagnosticTab,
     )
     from modbus_diagnostic_studio.gui.theme import available_themes, apply_theme
@@ -28,6 +29,7 @@ def test_gui_imports() -> None:
     assert MasterReadTab.__name__ == "MasterReadTab"
     assert MetersTab.__name__ == "MetersTab"
     assert ProfilesTab.__name__ == "ProfilesTab"
+    assert SlaveSimulatorTab.__name__ == "SlaveSimulatorTab"
     assert SnifferDiagnosticTab.__name__ == "SnifferDiagnosticTab"
     assert available_themes() == ["system", "light", "dark"]
     assert callable(apply_theme)
