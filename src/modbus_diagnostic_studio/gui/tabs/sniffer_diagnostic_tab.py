@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from modbus_diagnostic_studio.models.communication_profile import CommunicationProfile
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
+from modbus_diagnostic_studio.services.application_state import ApplicationState
 from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
 from modbus_diagnostic_studio.sniffer.capture_writer import (
     write_events_csv,
@@ -130,15 +131,15 @@ class SnifferDiagnosticTab(QWidget):
 
     stop_requested = Signal()
 
-    def __init__(self) -> None:
+    def __init__(self, app_state: ApplicationState | None = None) -> None:
         super().__init__()
         self._thread: QThread | None = None
         self._worker: SnifferWorker | None = None
         self._running = False
         self._reserved_port: str | None = None
         self._last_snapshot: PassiveSnifferSnapshot | None = None
-        # TODO: inject an application-wide ModeManager from ApplicationState.
-        self._mode_manager = ModeManager()
+        self._app_state = app_state or ApplicationState()
+        self._mode_manager = self._app_state.mode_manager
 
         self.banner_label = QLabel("PASSIVE SNIFFER - DOES NOT TRANSMIT")
         banner_font = self.banner_label.font()

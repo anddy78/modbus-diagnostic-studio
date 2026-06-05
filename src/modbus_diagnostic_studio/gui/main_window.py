@@ -15,6 +15,7 @@ from modbus_diagnostic_studio.gui.tabs.sniffer_diagnostic_tab import (
     SnifferDiagnosticTab,
 )
 from modbus_diagnostic_studio.gui.theme import apply_theme, available_themes
+from modbus_diagnostic_studio.services.application_state import ApplicationState
 
 
 class MainWindow(QMainWindow):
@@ -26,15 +27,16 @@ class MainWindow(QMainWindow):
         self.resize(980, 680)
 
         self._current_theme = "system"
+        self.app_state = ApplicationState()
 
         tabs = QTabWidget()
         tabs.addTab(ConnectionTab(), "Connection")
-        tabs.addTab(MetersTab(), "Meters")
-        tabs.addTab(AdvancedMasterTab(), "Advanced Master")
-        tabs.addTab(SlaveSimulatorTab(), "Slave Simulator")
+        tabs.addTab(MetersTab(self.app_state), "Meters")
+        tabs.addTab(AdvancedMasterTab(self.app_state), "Advanced Master")
+        tabs.addTab(SlaveSimulatorTab(self.app_state), "Slave Simulator")
         tabs.addTab(DecoderTab(), "Decoder")
-        tabs.addTab(MasterReadTab(), "Master Read")
-        tabs.addTab(SnifferDiagnosticTab(), "Sniffer Diagnostic")
+        tabs.addTab(MasterReadTab(self.app_state), "Master Read")
+        tabs.addTab(SnifferDiagnosticTab(self.app_state), "Sniffer Diagnostic")
         tabs.addTab(ProfilesTab(), "Profiles")
 
         self.setCentralWidget(tabs)

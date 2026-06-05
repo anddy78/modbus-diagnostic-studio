@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
+from modbus_diagnostic_studio.services.application_state import ApplicationState
 from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
 from modbus_diagnostic_studio.slave.datastore import SlaveDatastore
 from modbus_diagnostic_studio.slave.rtu_server import RtuSlaveServer, RtuSlaveServerConfig, RtuSlaveServerStats
@@ -99,13 +100,14 @@ class SlaveSimulatorTab(QWidget):
 
     stop_requested = Signal()
 
-    def __init__(self) -> None:
+    def __init__(self, app_state: ApplicationState | None = None) -> None:
         super().__init__()
         self._thread: QThread | None = None
         self._worker: SlaveServerWorker | None = None
         self._running = False
         self._reserved_port: str | None = None
-        self._mode_manager = ModeManager()
+        self._app_state = app_state or ApplicationState()
+        self._mode_manager = self._app_state.mode_manager
         self._datastore = SlaveDatastore()
 
         # ── active mode banner ────────────────────────────────────────────

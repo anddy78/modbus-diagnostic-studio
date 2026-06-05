@@ -30,6 +30,7 @@ from modbus_diagnostic_studio.profiles.loader import (
     list_builtin_profiles,
     load_builtin_profile,
 )
+from modbus_diagnostic_studio.services.application_state import ApplicationState
 from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
 from modbus_diagnostic_studio.transports.rtu_transport import RtuTransport
 from modbus_diagnostic_studio.transports.serial_ports import list_serial_ports
@@ -91,10 +92,11 @@ class MeterReadWorker(QObject):
 class MetersTab(QWidget):
     """Friendly meter read tab — select meter model, read electrical values."""
 
-    def __init__(self) -> None:
+    def __init__(self, app_state: ApplicationState | None = None) -> None:
         super().__init__()
 
-        self._mode_manager = ModeManager()
+        self._app_state = app_state or ApplicationState()
+        self._mode_manager = self._app_state.mode_manager
         self._reserved_port: str | None = None
         self._thread: QThread | None = None
         self._worker: MeterReadWorker | None = None

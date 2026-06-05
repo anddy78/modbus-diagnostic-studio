@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from modbus_diagnostic_studio.master.client import ModbusMasterClient
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
+from modbus_diagnostic_studio.services.application_state import ApplicationState
 from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
 from modbus_diagnostic_studio.transports.rtu_transport import RtuTransport
 from modbus_diagnostic_studio.transports.serial_ports import list_serial_ports
@@ -317,10 +318,11 @@ class AdvancedWriteWorker(QObject):
 class AdvancedMasterTab(QWidget):
     """Generic Modbus RTU read and guarded write tab for technical users."""
 
-    def __init__(self) -> None:
+    def __init__(self, app_state: ApplicationState | None = None) -> None:
         super().__init__()
 
-        self._mode_manager = ModeManager()
+        self._app_state = app_state or ApplicationState()
+        self._mode_manager = self._app_state.mode_manager
         self._reserved_port: str | None = None
 
         # read state

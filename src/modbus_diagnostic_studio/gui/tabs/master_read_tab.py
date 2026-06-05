@@ -29,6 +29,7 @@ from modbus_diagnostic_studio.profiles.loader import (
     list_builtin_profiles,
     load_builtin_profile,
 )
+from modbus_diagnostic_studio.services.application_state import ApplicationState
 from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
 from modbus_diagnostic_studio.transports.rtu_transport import RtuTransport
 from modbus_diagnostic_studio.transports.serial_ports import list_serial_ports
@@ -102,12 +103,12 @@ class MasterReadWorker(QObject):
 class MasterReadTab(QWidget):
     """Manual active RTU read UI."""
 
-    def __init__(self) -> None:
+    def __init__(self, app_state: ApplicationState | None = None) -> None:
         super().__init__()
         self._thread: QThread | None = None
         self._worker: MasterReadWorker | None = None
-        # TODO: inject an application-wide ModeManager from ApplicationState.
-        self._mode_manager = ModeManager()
+        self._app_state = app_state or ApplicationState()
+        self._mode_manager = self._app_state.mode_manager
         self._reserved_port: str | None = None
 
         self.status_label = QLabel("Active master mode. A request is sent only when Read is pressed.")

@@ -130,6 +130,21 @@ def test_decode_registers_incomplete_pair() -> None:
     assert "incomplete" in rows[0].decoded
 
 
+def test_tab_constructors_accept_optional_app_state() -> None:
+    """Tabs can be imported and signature-checked without a QApplication."""
+    import inspect
+    from modbus_diagnostic_studio.gui.tabs.advanced_master_tab import AdvancedMasterTab
+    from modbus_diagnostic_studio.gui.tabs.master_read_tab import MasterReadTab
+    from modbus_diagnostic_studio.gui.tabs.meters_tab import MetersTab
+    from modbus_diagnostic_studio.gui.tabs.slave_simulator_tab import SlaveSimulatorTab
+    from modbus_diagnostic_studio.gui.tabs.sniffer_diagnostic_tab import SnifferDiagnosticTab
+
+    for cls in (AdvancedMasterTab, MasterReadTab, MetersTab, SlaveSimulatorTab, SnifferDiagnosticTab):
+        params = inspect.signature(cls.__init__).parameters
+        assert "app_state" in params, f"{cls.__name__} missing app_state"
+        assert params["app_state"].default is None
+
+
 def test_meters_tab_grouping() -> None:
     from modbus_diagnostic_studio.gui.tabs.meters_tab import _classify_variable
 
