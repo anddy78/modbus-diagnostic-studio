@@ -1,4 +1,4 @@
-"""Advanced Master tab — generic Modbus RTU read and guarded write."""
+"""Advanced Master tab — generic Modbus RTU read (FC01-FC04) and guarded write."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -26,6 +27,12 @@ from PySide6.QtWidgets import (
 )
 
 from modbus_diagnostic_studio.master.client import ModbusMasterClient
+from modbus_diagnostic_studio.master.operation_log import (
+    MAX_LOG_ENTRIES,
+    MasterOperationLogEntry,
+    write_log_csv,
+    write_log_jsonl,
+)
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
 from modbus_diagnostic_studio.services.application_state import ApplicationState
 from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
@@ -35,9 +42,6 @@ from modbus_diagnostic_studio.transports.serial_ports import list_serial_ports
 ADVANCED_MASTER_OWNER = "advanced_master_tab"
 
 _WRITE_CONFIRM_TOKEN = "WRITE"
-
-# TODO: add FC01 Read Coils and FC02 Read Discrete Inputs once coil/bit
-#       response parsing is added to the core RTU frame parser.
 
 DECODE_FORMATS = [
     "uint16",
@@ -50,20 +54,18 @@ DECODE_FORMATS = [
     "binary",
 ]
 
+_BIT_FC = frozenset({1, 2})
+_REG_FC = frozenset({3, 4})
 
-# ── pure value-parsing helpers (no GUI dependency) ────────────────────────────
+
+# ── pure value-parsing helpers ────────────────────────────────────────────────
 
 
 def parse_coil_values(text: str) -> list[bool]:
     """Parse comma- or space-separated coil values from *text*.
 
     Accepts: 1, 0, true, false (case-insensitive).
-    Rejects all other tokens to avoid ambiguity.
-
-    Examples
-    --------
-    "1,0,1"         → [True, False, True]
-    "true false"    → [True, False]
+    Rejects all other tokens.
     """
     tokens = text.replace(",", " ").split()
     if not tokens:
@@ -85,12 +87,7 @@ def parse_coil_values(text: str) -> list[bool]:
 def parse_register_values(text: str) -> list[int]:
     """Parse comma- or space-separated register values from *text*.
 
-    Accepts decimal or 0x-prefixed hex.  All values must be 0..65535.
-
-    Examples
-    --------
-    "100 200 300"       → [100, 200, 300]
-    "0x0001, 0xFF00"    → [1, 65280]
+    Accepts decimal or 0x-prefixed hex. All values must be 0..65535.
     """
     tokens = text.replace(",", " ").split()
     if not tokens:
@@ -107,12 +104,12 @@ def parse_register_values(text: str) -> list[int]:
     return result
 
 
-# ── pure decode helper ────────────────────────────────────────────────────────
+# ── pure decode helpers ───────────────────────────────────────────────────────
 
 
 @dataclass(frozen=True)
 class DecodeRow:
-    """One row in the decoded register table."""
+    """One row in the decoded register/bit table."""
 
     offset: int
     address: int
@@ -120,6 +117,22 @@ class DecodeRow:
     hex_str: str
     bin_str: str
     decoded: str
+
+
+def decode_bits(bits: list[bool], start_address: int) -> list[DecodeRow]:
+    """Produce one DecodeRow per bit with ON/OFF decoded value."""
+    rows: list[DecodeRow] = []
+    for i, bit in enumerate(bits):
+        raw = int(bit)
+        rows.append(DecodeRow(
+            offset=i,
+            address=start_address + i,
+            raw_uint16=raw,
+            hex_str=f"0x{raw:04X}",
+            bin_str=f"{raw:016b}",
+            decoded="ON" if bit else "OFF",
+        ))
+    return rows
 
 
 def decode_registers(
@@ -143,30 +156,24 @@ def decode_registers(
     if fmt == "uint16":
         for i, raw in enumerate(registers):
             rows.append(DecodeRow(*_base_row(i), decoded=str(raw)))
-
     elif fmt == "int16":
         for i, raw in enumerate(registers):
             signed = raw - 0x10000 if raw & 0x8000 else raw
             rows.append(DecodeRow(*_base_row(i), decoded=str(signed)))
-
     elif fmt in ("uint32", "int32", "float32", "float32 word-swap"):
         for i in range(0, len(registers), 2):
             pair = registers[i : i + 2]
             if len(pair) == 2:
-                decoded_val = _decode_pair(pair, fmt)
-                rows.append(DecodeRow(*_base_row(i), decoded=decoded_val))
+                rows.append(DecodeRow(*_base_row(i), decoded=_decode_pair(pair, fmt)))
                 rows.append(DecodeRow(*_base_row(i + 1), decoded="-"))
             else:
                 rows.append(DecodeRow(*_base_row(i), decoded="(incomplete pair)"))
-
     elif fmt == "hex":
         for i, raw in enumerate(registers):
             rows.append(DecodeRow(*_base_row(i), decoded=f"0x{raw:04X}"))
-
     elif fmt == "binary":
         for i, raw in enumerate(registers):
             rows.append(DecodeRow(*_base_row(i), decoded=f"{raw:016b}"))
-
     else:
         for i, raw in enumerate(registers):
             rows.append(DecodeRow(*_base_row(i), decoded=str(raw)))
@@ -180,8 +187,7 @@ def _decode_pair(pair: list[int], fmt: str) -> str:
     if fmt == "uint32":
         return str(raw32)
     if fmt == "int32":
-        signed = raw32 - 0x100000000 if raw32 & 0x80000000 else raw32
-        return str(signed)
+        return str(raw32 - 0x100000000 if raw32 & 0x80000000 else raw32)
     if fmt == "float32":
         data = struct.pack(">HH", high, low)
         return f"{struct.unpack('>f', data)[0]:.6g}"
@@ -196,7 +202,7 @@ def _decode_pair(pair: list[int], fmt: str) -> str:
 
 @dataclass(frozen=True)
 class AdvancedReadRequest:
-    """One raw Modbus read request."""
+    """One raw Modbus read request (bits or registers)."""
 
     settings: SerialConnectionSettings
     slave_id: int
@@ -206,9 +212,9 @@ class AdvancedReadRequest:
 
 
 class AdvancedReadWorker(QObject):
-    """Worker that opens a transport, reads raw registers, then closes."""
+    """Worker that opens a transport, reads raw data (bits or registers), then closes."""
 
-    finished = Signal(object)   # list[int]
+    finished = Signal(object)   # list[bool] for FC01/02, list[int] for FC03/04
     failed = Signal(str)
 
     def __init__(self, request: AdvancedReadRequest) -> None:
@@ -221,19 +227,21 @@ class AdvancedReadWorker(QObject):
         try:
             transport.open()
             client = ModbusMasterClient(transport)
-            if self._request.function_code == 3:
-                registers = client.read_holding_registers(
-                    self._request.slave_id,
-                    self._request.address,
-                    self._request.quantity,
-                )
+            fc = self._request.function_code
+            sid = self._request.slave_id
+            addr = self._request.address
+            qty = self._request.quantity
+
+            if fc == 1:
+                data = client.read_coils(sid, addr, qty)
+            elif fc == 2:
+                data = client.read_discrete_inputs(sid, addr, qty)
+            elif fc == 3:
+                data = client.read_holding_registers(sid, addr, qty)
             else:
-                registers = client.read_input_registers(
-                    self._request.slave_id,
-                    self._request.address,
-                    self._request.quantity,
-                )
-            self.finished.emit(registers)
+                data = client.read_input_registers(sid, addr, qty)
+
+            self.finished.emit(data)
         except Exception as exc:
             self.failed.emit(str(exc))
         finally:
@@ -261,7 +269,7 @@ class WriteRequest:
 class AdvancedWriteWorker(QObject):
     """Worker that opens a transport, executes one write, then closes."""
 
-    finished = Signal(str)   # human-readable success message
+    finished = Signal(str)
     failed = Signal(str)
 
     def __init__(self, request: WriteRequest) -> None:
@@ -278,9 +286,7 @@ class AdvancedWriteWorker(QObject):
             if r.function_code == 5:
                 v = r.coil_values[0]  # type: ignore[index]
                 confirmed = client.write_single_coil(r.slave_id, r.address, v)
-                self.finished.emit(
-                    f"FC05 OK — address {r.address} = {confirmed}"
-                )
+                self.finished.emit(f"FC05 OK — address {r.address} = {confirmed}")
             elif r.function_code == 6:
                 v = r.register_values[0]  # type: ignore[index]
                 confirmed = client.write_single_register(r.slave_id, r.address, v)
@@ -316,7 +322,7 @@ class AdvancedWriteWorker(QObject):
 
 
 class AdvancedMasterTab(QWidget):
-    """Generic Modbus RTU read and guarded write tab for technical users."""
+    """Generic Modbus RTU read (FC01-FC04) and guarded write tab for technical users."""
 
     def __init__(self, app_state: ApplicationState | None = None) -> None:
         super().__init__()
@@ -333,11 +339,17 @@ class AdvancedMasterTab(QWidget):
         self._cycle_count: int = 0
         self._error_count: int = 0
         self._last_error: str = ""
+        self._last_read_fc: int = 3
+        self._last_read_request: AdvancedReadRequest | None = None
 
         # write state
         self._write_thread: QThread | None = None
         self._write_worker: AdvancedWriteWorker | None = None
         self._write_busy: bool = False
+        self._last_write_request: WriteRequest | None = None
+
+        # log
+        self._operation_log: list[MasterOperationLogEntry] = []
 
         # ── status ────────────────────────────────────────────────────────
         self.status_label = QLabel(
@@ -370,8 +382,12 @@ class AdvancedMasterTab(QWidget):
         self.slave_id.setValue(1)
 
         self.function_combo = QComboBox()
+        self.function_combo.addItem("FC01 — Read Coils", 1)
+        self.function_combo.addItem("FC02 — Read Discrete Inputs", 2)
         self.function_combo.addItem("FC03 — Read Holding Registers", 3)
         self.function_combo.addItem("FC04 — Read Input Registers", 4)
+        self.function_combo.setCurrentIndex(2)  # default FC03
+        self.function_combo.currentIndexChanged.connect(self._on_read_function_changed)
 
         self.start_address = QSpinBox()
         self.start_address.setRange(0, 65535)
@@ -412,7 +428,7 @@ class AdvancedMasterTab(QWidget):
         # ── output table ──────────────────────────────────────────────────
         self.registers_table = QTableWidget(0, 6)
         self.registers_table.setHorizontalHeaderLabels(
-            ["Offset", "Address", "Raw uint16", "Hex", "Binary", "Decoded value"]
+            ["Offset", "Address", "Raw", "Hex", "Binary", "Decoded value"]
         )
         self.registers_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.registers_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -420,12 +436,15 @@ class AdvancedMasterTab(QWidget):
         # ── write section ─────────────────────────────────────────────────
         self._build_write_section()
 
+        # ── log section ───────────────────────────────────────────────────
+        self._build_log_section()
+
         self._build_layout()
         self.refresh_ports()
 
+    # ── write section builder ─────────────────────────────────────────────
+
     def _build_write_section(self) -> None:
-        """Create all write-mode widgets (locked by default)."""
-        # Warning banner
         self.write_warning_label = QLabel(
             "⚠  ACTIVE WRITE MODE — CAN MODIFY REAL DEVICES\n"
             "Writes are disabled by default.\n"
@@ -435,14 +454,11 @@ class AdvancedMasterTab(QWidget):
         warn_font.setBold(True)
         self.write_warning_label.setFont(warn_font)
 
-        # Unlock controls
         self.write_enable_check = QCheckBox("Enable Modbus Write Mode")
         self.write_enable_check.setChecked(False)
         self.write_enable_check.stateChanged.connect(self._update_write_unlock_state)
 
-        self.write_risk_check = QCheckBox(
-            "I understand this can modify a real device"
-        )
+        self.write_risk_check = QCheckBox("I understand this can modify a real device")
         self.write_risk_check.setChecked(False)
         self.write_risk_check.setEnabled(False)
         self.write_risk_check.stateChanged.connect(self._update_write_unlock_state)
@@ -452,7 +468,6 @@ class AdvancedMasterTab(QWidget):
         self.write_confirm_edit.setEnabled(False)
         self.write_confirm_edit.textChanged.connect(self._update_write_unlock_state)
 
-        # Write function selector
         self.write_function_combo = QComboBox()
         self.write_function_combo.addItem("FC05 — Write Single Coil", 5)
         self.write_function_combo.addItem("FC06 — Write Single Register", 6)
@@ -461,24 +476,41 @@ class AdvancedMasterTab(QWidget):
         self.write_function_combo.setEnabled(False)
         self.write_function_combo.currentIndexChanged.connect(self._update_write_value_hint)
 
-        # Write address
         self.write_address = QSpinBox()
         self.write_address.setRange(0, 65535)
         self.write_address.setEnabled(False)
 
-        # Value input and hint label
         self.write_value_hint = QLabel("Value (0/1 or true/false):")
         self.write_value_edit = QLineEdit()
         self.write_value_edit.setPlaceholderText("e.g. 1")
         self.write_value_edit.setEnabled(False)
 
-        # Send Write button
         self.send_write_button = QPushButton("Send Write")
         self.send_write_button.setEnabled(False)
         self.send_write_button.clicked.connect(self._send_write)
 
-        # Write status
         self.write_status_label = QLabel("Write status: —")
+
+    # ── log section builder ───────────────────────────────────────────────
+
+    def _build_log_section(self) -> None:
+        self.log_table = QTableWidget(0, 9)
+        self.log_table.setHorizontalHeaderLabels(
+            ["Timestamp", "Op", "COM", "Slave", "FC", "Address", "Qty/Values", "Status", "Message"]
+        )
+        self.log_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.log_table.setSelectionBehavior(QTableWidget.SelectRows)
+
+        self.clear_log_button = QPushButton("Clear Log")
+        self.clear_log_button.clicked.connect(self._clear_log)
+
+        self.export_log_csv_button = QPushButton("Export Log CSV")
+        self.export_log_csv_button.clicked.connect(self._export_log_csv)
+
+        self.export_log_jsonl_button = QPushButton("Export Log JSONL")
+        self.export_log_jsonl_button.clicked.connect(self._export_log_jsonl)
+
+    # ── layout ────────────────────────────────────────────────────────────
 
     def _build_layout(self) -> None:
         form = QFormLayout()
@@ -509,7 +541,7 @@ class AdvancedMasterTab(QWidget):
         meta_row.addWidget(self.last_read_label)
         meta_row.addStretch()
 
-        # ── write section group box ───────────────────────────────────────
+        # write group
         write_group = QGroupBox("Write Mode — Locked by default")
         wform = QFormLayout()
         wform.addRow(self.write_warning_label)
@@ -523,14 +555,27 @@ class AdvancedMasterTab(QWidget):
         wform.addRow(self.write_status_label)
         write_group.setLayout(wform)
 
+        # log group
+        log_group = QGroupBox("Master Operation Log")
+        log_btn_row = QHBoxLayout()
+        log_btn_row.addWidget(self.clear_log_button)
+        log_btn_row.addWidget(self.export_log_csv_button)
+        log_btn_row.addWidget(self.export_log_jsonl_button)
+        log_btn_row.addStretch()
+        log_vbox = QVBoxLayout()
+        log_vbox.addLayout(log_btn_row)
+        log_vbox.addWidget(self.log_table)
+        log_group.setLayout(log_vbox)
+
         layout = QVBoxLayout()
         layout.addWidget(self.status_label)
         layout.addLayout(form)
         layout.addLayout(btn_row)
         layout.addLayout(meta_row)
-        layout.addWidget(QLabel("Registers"))
+        layout.addWidget(QLabel("Registers / Bits"))
         layout.addWidget(self.registers_table)
         layout.addWidget(write_group)
+        layout.addWidget(log_group)
         self.setLayout(layout)
 
     # ── port refresh ──────────────────────────────────────────────────────
@@ -548,6 +593,21 @@ class AdvancedMasterTab(QWidget):
             f"{self.port_combo.count()} port(s) detected. "
             "Active read — request sent only on demand."
         )
+
+    # ── function selector adapts quantity + decode ────────────────────────
+
+    def _on_read_function_changed(self) -> None:
+        fc = int(self.function_combo.currentData())
+        if fc in _BIT_FC:
+            self.quantity.setRange(1, 2000)
+            if self.quantity.value() > 2000:
+                self.quantity.setValue(2000)
+            self.decode_format.setEnabled(False)
+        else:
+            self.quantity.setRange(1, 125)
+            if self.quantity.value() > 125:
+                self.quantity.setValue(125)
+            self.decode_format.setEnabled(True)
 
     # ── read once ─────────────────────────────────────────────────────────
 
@@ -651,6 +711,8 @@ class AdvancedMasterTab(QWidget):
             return
 
         self._reading_busy = True
+        self._last_read_fc = request.function_code
+        self._last_read_request = request
         self.read_once_button.setEnabled(False)
         self._set_status("Reading…")
 
@@ -666,18 +728,41 @@ class AdvancedMasterTab(QWidget):
         self._thread.start()
 
     @Slot(object)
-    def _on_read_success(self, registers: list[int]) -> None:
+    def _on_read_success(self, data: object) -> None:
         self._cycle_count += 1
         ts = datetime.now().strftime("%H:%M:%S")
         self.last_read_label.setText(f"Last read: {ts}")
         self._update_meta_labels()
+
+        req = self._last_read_request
+        fc = self._last_read_fc
+
+        if fc in _BIT_FC and isinstance(data, list):
+            rows = decode_bits(data, self.start_address.value())  # type: ignore[arg-type]
+            values_str = f"{len(data)} bit(s)"
+        else:
+            fmt = str(self.decode_format.currentData())
+            rows = decode_registers(data, self.start_address.value(), fmt)  # type: ignore[arg-type]
+            values_str = f"{len(data)} register(s)"  # type: ignore[arg-type]
+
         self._set_status(
-            f"Read OK — {len(registers)} register(s) — cycle {self._cycle_count} — {ts}"
+            f"Read OK — {values_str} — cycle {self._cycle_count} — {ts}"
         )
-        fmt = str(self.decode_format.currentData())
-        rows = decode_registers(registers, self.start_address.value(), fmt)
         self._populate_table(rows)
         self._release_port()
+
+        if req is not None:
+            self._log_operation(
+                operation="read",
+                com_port=req.settings.port,
+                slave_id=req.slave_id,
+                function_code=req.function_code,
+                address=req.address,
+                quantity=req.quantity,
+                values=values_str,
+                status="ok",
+                message=f"Read OK at {ts}",
+            )
 
     @Slot(str)
     def _on_read_error(self, message: str) -> None:
@@ -686,6 +771,20 @@ class AdvancedMasterTab(QWidget):
         self._update_meta_labels()
         self._set_status(f"Error: {message}")
         self._release_port()
+
+        req = self._last_read_request
+        if req is not None:
+            self._log_operation(
+                operation="read",
+                com_port=req.settings.port,
+                slave_id=req.slave_id,
+                function_code=req.function_code,
+                address=req.address,
+                quantity=req.quantity,
+                values="-",
+                status="error",
+                message=message,
+            )
 
     @Slot()
     def _cleanup_read_worker(self) -> None:
@@ -702,14 +801,12 @@ class AdvancedMasterTab(QWidget):
     # ── write mode unlock ─────────────────────────────────────────────────
 
     def _update_write_unlock_state(self) -> None:
-        """Enable/disable write controls based on the three unlock conditions."""
         enabled = self.write_enable_check.isChecked()
         self.write_risk_check.setEnabled(enabled)
         self.write_confirm_edit.setEnabled(enabled)
         self.write_function_combo.setEnabled(enabled)
         self.write_address.setEnabled(enabled)
         self.write_value_edit.setEnabled(enabled)
-
         unlocked = self._is_write_unlocked()
         self.send_write_button.setEnabled(unlocked and not self._write_busy)
 
@@ -753,7 +850,6 @@ class AdvancedMasterTab(QWidget):
         addr = self.write_address.value()
         value_text = self.write_value_edit.text().strip()
 
-        # Parse values
         try:
             coil_values: list[bool] | None = None
             register_values: list[int] | None = None
@@ -776,7 +872,6 @@ class AdvancedMasterTab(QWidget):
             self.write_status_label.setText(f"Parse error: {exc}")
             return
 
-        # Build settings
         try:
             settings = SerialConnectionSettings(
                 port=str(port),
@@ -789,9 +884,10 @@ class AdvancedMasterTab(QWidget):
             self.write_status_label.setText(f"Settings error: {exc}")
             return
 
-        # Final confirmation dialog
-        fc_names = {5: "FC05 Write Single Coil", 6: "FC06 Write Single Register",
-                    15: "FC15 Write Multiple Coils", 16: "FC16 Write Multiple Registers"}
+        fc_names = {
+            5: "FC05 Write Single Coil", 6: "FC06 Write Single Register",
+            15: "FC15 Write Multiple Coils", 16: "FC16 Write Multiple Registers",
+        }
         values_summary = (
             str(coil_values) if coil_values is not None else str(register_values)
         )
@@ -817,6 +913,18 @@ class AdvancedMasterTab(QWidget):
         )
         if reply != QMessageBox.Yes:
             self.write_status_label.setText("Write cancelled.")
+            qty = len(coil_values or register_values or [])
+            self._log_operation(
+                operation="write",
+                com_port=settings.port,
+                slave_id=self.slave_id.value(),
+                function_code=fc,
+                address=addr,
+                quantity=qty,
+                values=values_summary,
+                status="cancelled",
+                message="User cancelled confirmation dialog",
+            )
             return
 
         write_request = WriteRequest(
@@ -827,6 +935,7 @@ class AdvancedMasterTab(QWidget):
             coil_values=coil_values,
             register_values=register_values,
         )
+        self._last_write_request = write_request
         self._start_write_worker(write_request)
 
     def _start_write_worker(self, request: WriteRequest) -> None:
@@ -859,10 +968,42 @@ class AdvancedMasterTab(QWidget):
         self.write_status_label.setText(f"Write OK [{ts}]: {message}")
         self._release_port()
 
+        req = self._last_write_request
+        if req is not None:
+            qty = len(req.coil_values or req.register_values or [])
+            vals = str(req.coil_values) if req.coil_values is not None else str(req.register_values)
+            self._log_operation(
+                operation="write",
+                com_port=req.settings.port,
+                slave_id=req.slave_id,
+                function_code=req.function_code,
+                address=req.address,
+                quantity=qty,
+                values=vals,
+                status="ok",
+                message=message,
+            )
+
     @Slot(str)
     def _on_write_error(self, message: str) -> None:
         self.write_status_label.setText(f"Write error: {message}")
         self._release_port()
+
+        req = self._last_write_request
+        if req is not None:
+            qty = len(req.coil_values or req.register_values or [])
+            vals = str(req.coil_values) if req.coil_values is not None else str(req.register_values)
+            self._log_operation(
+                operation="write",
+                com_port=req.settings.port,
+                slave_id=req.slave_id,
+                function_code=req.function_code,
+                address=req.address,
+                quantity=qty,
+                values=vals,
+                status="error",
+                message=message,
+            )
 
     @Slot()
     def _cleanup_write_worker(self) -> None:
@@ -874,6 +1015,88 @@ class AdvancedMasterTab(QWidget):
             self._write_thread.deleteLater()
             self._write_thread = None
         self._update_write_unlock_state()
+
+    # ── log management ────────────────────────────────────────────────────
+
+    def _log_operation(
+        self,
+        operation: str,
+        com_port: str,
+        slave_id: int,
+        function_code: int,
+        address: int,
+        quantity: int | None,
+        values: str,
+        status: str,
+        message: str,
+    ) -> None:
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        entry = MasterOperationLogEntry(
+            timestamp=ts,
+            operation=operation,
+            com_port=com_port,
+            slave_id=slave_id,
+            function_code=function_code,
+            address=address,
+            quantity=quantity,
+            values=values,
+            status=status,
+            message=message,
+        )
+        if len(self._operation_log) >= MAX_LOG_ENTRIES:
+            self._operation_log.pop(0)
+        self._operation_log.append(entry)
+        self._append_log_row(entry)
+
+    def _append_log_row(self, entry: MasterOperationLogEntry) -> None:
+        row = self.log_table.rowCount()
+        self.log_table.insertRow(row)
+        for col, val in enumerate([
+            entry.timestamp,
+            entry.operation,
+            entry.com_port,
+            str(entry.slave_id),
+            f"FC{entry.function_code:02d}",
+            str(entry.address),
+            str(entry.quantity) if entry.quantity is not None else entry.values,
+            entry.status,
+            entry.message,
+        ]):
+            self.log_table.setItem(row, col, QTableWidgetItem(val))
+
+    def _clear_log(self) -> None:
+        self._operation_log.clear()
+        self.log_table.setRowCount(0)
+
+    def _export_log_csv(self) -> None:
+        if not self._operation_log:
+            self.status_label.setText("No log entries to export.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Log CSV", "master_log.csv", "CSV files (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            write_log_csv(path, self._operation_log)
+            self.status_label.setText(f"Log exported to: {path}")
+        except Exception as exc:
+            self.status_label.setText(f"Export error: {exc}")
+
+    def _export_log_jsonl(self) -> None:
+        if not self._operation_log:
+            self.status_label.setText("No log entries to export.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Log JSONL", "master_log.jsonl", "JSONL files (*.jsonl)"
+        )
+        if not path:
+            return
+        try:
+            write_log_jsonl(path, self._operation_log)
+            self.status_label.setText(f"Log exported to: {path}")
+        except Exception as exc:
+            self.status_label.setText(f"Export error: {exc}")
 
     # ── shared helpers ────────────────────────────────────────────────────
 

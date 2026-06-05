@@ -335,3 +335,136 @@ def test_slave_id_zero_rejected_for_write_multiple_registers() -> None:
     client = ModbusMasterClient(FakeTransport(b""))
     with pytest.raises(ValueError, match="slave_id"):
         client.write_multiple_registers(slave_id=0, address=0, values=[1])
+
+
+# ── read_coils / read_discrete_inputs (FC01/FC02) ────────────────────────────
+
+
+def _make_bit_response(slave_id: int, fc: int, bits: list[bool]) -> bytes:
+    """Build a valid FC01/FC02 bit read response frame."""
+    qty = len(bits)
+    byte_count = (qty + 7) // 8
+    data = bytearray(byte_count)
+    for i, b in enumerate(bits):
+        if b:
+            data[i // 8] |= 1 << (i % 8)
+    return append_crc(bytes([slave_id, fc, byte_count]) + bytes(data))
+
+
+def test_read_coils_builds_fc01_request() -> None:
+    response = _make_bit_response(1, 0x01, [True, False, True])
+    transport = FakeTransport(response)
+    client = ModbusMasterClient(transport)
+
+    result = client.read_coils(slave_id=1, address=0x0013, quantity=3)
+
+    expected_request = append_crc(bytes([0x01, 0x01, 0x00, 0x13, 0x00, 0x03]))
+    assert transport.requests[0] == expected_request
+    assert result == [True, False, True]
+
+
+def test_read_discrete_inputs_builds_fc02_request() -> None:
+    response = _make_bit_response(2, 0x02, [False, True])
+    transport = FakeTransport(response)
+    client = ModbusMasterClient(transport)
+
+    result = client.read_discrete_inputs(slave_id=2, address=0x000A, quantity=2)
+
+    expected_request = append_crc(bytes([0x02, 0x02, 0x00, 0x0A, 0x00, 0x02]))
+    assert transport.requests[0] == expected_request
+    assert result == [False, True]
+
+
+def test_read_coils_unpacks_bits_lsb_first() -> None:
+    # 0b01001101 = True,False,True,True,False,False,True,False
+    response = append_crc(bytes([0x01, 0x01, 0x01, 0b01001101]))
+    client = ModbusMasterClient(FakeTransport(response))
+
+    result = client.read_coils(slave_id=1, address=0, quantity=8)
+
+    assert result == [True, False, True, True, False, False, True, False]
+
+
+def test_read_coils_returns_exactly_quantity_bits() -> None:
+    # 9 coils but packed into 2 bytes; last bits should be dropped
+    bits_9 = [True, False, True, True, False, False, True, False, True]
+    response = _make_bit_response(1, 0x01, bits_9)
+    client = ModbusMasterClient(FakeTransport(response))
+
+    result = client.read_coils(slave_id=1, address=0, quantity=9)
+
+    assert len(result) == 9
+    assert result == bits_9
+
+
+def test_read_coils_exception_raises() -> None:
+    response = append_crc(bytes([0x01, 0x81, 0x02]))
+    client = ModbusMasterClient(FakeTransport(response))
+
+    with pytest.raises(RuntimeError, match="exception response: code 2"):
+        client.read_coils(slave_id=1, address=0, quantity=1)
+
+
+def test_read_coils_invalid_crc_raises() -> None:
+    valid = _make_bit_response(1, 0x01, [True])
+    bad = valid[:-1] + bytes([valid[-1] ^ 0xFF])
+    client = ModbusMasterClient(FakeTransport(bad))
+
+    with pytest.raises(RuntimeError, match="invalid CRC"):
+        client.read_coils(slave_id=1, address=0, quantity=1)
+
+
+def test_read_coils_slave_mismatch_raises() -> None:
+    # Response has slave_id=2, request was slave_id=1
+    response = _make_bit_response(2, 0x01, [True])
+    client = ModbusMasterClient(FakeTransport(response))
+
+    with pytest.raises(RuntimeError, match="slave id mismatch"):
+        client.read_coils(slave_id=1, address=0, quantity=1)
+
+
+def test_read_coils_function_code_mismatch_raises() -> None:
+    # Response has FC02 but request was FC01
+    response = _make_bit_response(1, 0x02, [True])
+    client = ModbusMasterClient(FakeTransport(response))
+
+    with pytest.raises(RuntimeError, match="function code mismatch"):
+        client.read_coils(slave_id=1, address=0, quantity=1)
+
+
+def test_read_coils_quantity_zero_raises() -> None:
+    client = ModbusMasterClient(FakeTransport(b""))
+    with pytest.raises(ValueError, match="quantity"):
+        client.read_coils(slave_id=1, address=0, quantity=0)
+
+
+def test_read_coils_quantity_over_2000_raises() -> None:
+    client = ModbusMasterClient(FakeTransport(b""))
+    with pytest.raises(ValueError, match="quantity"):
+        client.read_coils(slave_id=1, address=0, quantity=2001)
+
+
+def test_read_coils_address_plus_quantity_exceeds_65536_raises() -> None:
+    client = ModbusMasterClient(FakeTransport(b""))
+    with pytest.raises(ValueError, match="exceeds 65536"):
+        client.read_coils(slave_id=1, address=65535, quantity=2)
+
+
+def test_read_discrete_inputs_quantity_over_2000_raises() -> None:
+    client = ModbusMasterClient(FakeTransport(b""))
+    with pytest.raises(ValueError, match="quantity"):
+        client.read_discrete_inputs(slave_id=1, address=0, quantity=2001)
+
+
+def test_read_coils_all_false() -> None:
+    response = _make_bit_response(1, 0x01, [False] * 8)
+    client = ModbusMasterClient(FakeTransport(response))
+    result = client.read_coils(slave_id=1, address=0, quantity=8)
+    assert result == [False] * 8
+
+
+def test_read_coils_all_true() -> None:
+    response = _make_bit_response(1, 0x01, [True] * 8)
+    client = ModbusMasterClient(FakeTransport(response))
+    result = client.read_coils(slave_id=1, address=0, quantity=8)
+    assert result == [True] * 8

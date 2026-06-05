@@ -100,3 +100,28 @@ def test_serial_error_is_runtime_error() -> None:
 
     with pytest.raises(RuntimeError, match="write failed"):
         transport.write_frame(b"\x01")
+
+
+def test_transact_fc01_reads_byte_count_like_fc03() -> None:
+    # FC01 response: slave=1, fc=01, byte_count=1, data=0x4D, crc
+    request = append_crc(bytes([0x01, 0x01, 0x00, 0x00, 0x00, 0x08]))
+    response = append_crc(bytes([0x01, 0x01, 0x01, 0x4D]))
+    fake = FakeSerial(read_data=response)
+    transport = RtuTransport(settings(), serial_factory=lambda _: fake)
+    transport.open()
+
+    result = transport.transact(request)
+
+    assert result == response
+
+
+def test_transact_fc02_reads_byte_count_like_fc04() -> None:
+    request = append_crc(bytes([0x01, 0x02, 0x00, 0x00, 0x00, 0x03]))
+    response = append_crc(bytes([0x01, 0x02, 0x01, 0b00000101]))
+    fake = FakeSerial(read_data=response)
+    transport = RtuTransport(settings(), serial_factory=lambda _: fake)
+    transport.open()
+
+    result = transport.transact(request)
+
+    assert result == response

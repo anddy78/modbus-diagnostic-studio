@@ -1,4 +1,4 @@
-"""Active Modbus master client — FC03, FC04, FC05, FC06, FC15, FC16."""
+"""Active Modbus master client — FC01-FC04 reads, FC05/FC06/FC15/FC16 writes."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ class RtuTransportLike(Protocol):
 
 
 class ModbusMasterClient:
-    """Active Modbus master for FC03, FC04 reads and FC05/FC06/FC15/FC16 writes.
+    """Active Modbus master for FC01-FC04 reads and FC05/FC06/FC15/FC16 writes.
 
     Write operations
     ----------------
@@ -33,7 +33,74 @@ class ModbusMasterClient:
     def __init__(self, transport: RtuTransportLike) -> None:
         self.transport = transport
 
-    # ── read operations ────────────────────────────────────────────────────
+    # ── bit read operations ────────────────────────────────────────────────
+
+    def read_coils(self, slave_id: int, address: int, quantity: int) -> list[bool]:
+        """Read coils using FC01.  Returns exactly *quantity* bool values."""
+        return self._read_bits(slave_id, 0x01, address, quantity)
+
+    def read_discrete_inputs(self, slave_id: int, address: int, quantity: int) -> list[bool]:
+        """Read discrete inputs using FC02.  Returns exactly *quantity* bool values."""
+        return self._read_bits(slave_id, 0x02, address, quantity)
+
+    def _read_bits(
+        self,
+        slave_id: int,
+        function_code: int,
+        address: int,
+        quantity: int,
+    ) -> list[bool]:
+        """FC01/FC02 shared implementation: build request, transact, unpack LSB-first."""
+        self._validate_slave_and_address(slave_id, address)
+        if not 1 <= quantity <= 2000:
+            raise ValueError(f"quantity must be in range 1..2000, got {quantity}")
+        if address + quantity > 65536:
+            raise ValueError("address + quantity exceeds 65536")
+
+        payload = bytes([
+            slave_id, function_code,
+            (address >> 8) & 0xFF, address & 0xFF,
+            (quantity >> 8) & 0xFF, quantity & 0xFF,
+        ])
+        request = append_crc(payload)
+
+        try:
+            response = self.transport.transact(request, expected_min_response_size=5)
+        except Exception as exc:
+            raise RuntimeError(f"Modbus bit read transaction failed: {exc}") from exc
+
+        classification = classify_frame(response)
+        if classification == "invalid_crc":
+            raise RuntimeError("Modbus bit read response has invalid CRC")
+        if classification == "exception_response":
+            exception = parse_exception_response(response)
+            raise RuntimeError(
+                f"Modbus exception response: code {exception.exception_code}"
+            )
+        if len(response) < 5:
+            raise RuntimeError(
+                f"Modbus bit read response too short: {len(response)} bytes"
+            )
+        if response[0] != slave_id:
+            raise RuntimeError("Modbus bit read response slave id mismatch")
+        if response[1] != function_code:
+            raise RuntimeError("Modbus bit read response function code mismatch")
+
+        byte_count = response[2]
+        data = response[3 : 3 + byte_count]
+        if len(data) != byte_count:
+            raise RuntimeError(
+                f"Modbus bit read response data truncated: "
+                f"expected {byte_count} bytes, got {len(data)}"
+            )
+
+        bits: list[bool] = [
+            bool(data[i // 8] & (1 << (i % 8)))
+            for i in range(quantity)
+        ]
+        return bits
+
+    # ── register read operations ───────────────────────────────────────────
 
     def read_holding_registers(
         self,

@@ -145,6 +145,20 @@ def test_tab_constructors_accept_optional_app_state() -> None:
         assert params["app_state"].default is None
 
 
+def test_decode_bits() -> None:
+    from modbus_diagnostic_studio.gui.tabs.advanced_master_tab import decode_bits
+
+    rows = decode_bits([True, False, True], start_address=10)
+    assert len(rows) == 3
+    assert rows[0].offset == 0
+    assert rows[0].address == 10
+    assert rows[0].raw_uint16 == 1
+    assert rows[0].decoded == "ON"
+    assert rows[1].raw_uint16 == 0
+    assert rows[1].decoded == "OFF"
+    assert rows[2].decoded == "ON"
+
+
 def test_meters_tab_grouping() -> None:
     from modbus_diagnostic_studio.gui.tabs.meters_tab import _classify_variable
 

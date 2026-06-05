@@ -107,7 +107,7 @@ class RtuTransport:
         if function_code & 0x80:
             return header + self.read_exact(2)
 
-        if function_code in {0x03, 0x04}:
+        if function_code in {0x01, 0x02, 0x03, 0x04}:
             byte_count = header[2]
             return header + self.read_exact(byte_count + 2)
 
