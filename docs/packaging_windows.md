@@ -1,19 +1,57 @@
-﻿# Windows Packaging
+# Windows Packaging
 
-Target:
-Self-contained Windows application.
+## Goal
 
-Preferred first target:
-Portable PyInstaller build.
+Produce a self-contained Windows portable build for `modbus-diagnostic-studio`.
 
-Later target:
-Installer.
+The first packaging target is a PyInstaller one-folder build that launches the GUI without requiring the user to run Python manually.
 
-Expected runtime folders:
-- config/
-- profiles/
-- logs/
-- captures/
-- exports/
+## Portable Build Inputs
 
-End users must not need to run Python scripts manually.
+- Entry point: `src\modbus_diagnostic_studio\main.py`
+- PyInstaller spec: `packaging\pyinstaller\modbus_diagnostic_studio.spec`
+- Build script: `scripts\build_portable.ps1`
+
+## Included Application Data
+
+The portable build bundles built-in YAML data required at runtime:
+
+- `src\modbus_diagnostic_studio\profiles\builtins\`
+- `src\modbus_diagnostic_studio\sniffer\builtins\`
+
+## Expected Portable Output
+
+The build script targets:
+
+- `dist\ModbusDiagnosticStudioPortable\`
+
+After packaging, the script ensures these writable runtime folders exist inside the portable output:
+
+- `config\`
+- `logs\`
+- `captures\`
+- `exports\`
+
+## Build Command
+
+Run from PowerShell:
+
+```powershell
+.\scripts\build_portable.ps1
+```
+
+## Validation
+
+Recommended validation before packaging:
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall src tests
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m modbus_diagnostic_studio.main --help
+```
+
+## Notes
+
+- Portable build is one-folder, not one-file.
+- Sniffer mode remains passive only and must never transmit.
+- Installer packaging can be added later once the portable layout is stable.

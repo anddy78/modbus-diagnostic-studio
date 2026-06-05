@@ -270,6 +270,10 @@ class MasterReadTab(QWidget):
     @Slot()
     def _cleanup_worker(self) -> None:
         self.read_button.setEnabled(True)
+        if self._worker is not None:
+            self._worker.deleteLater()
+        if self._thread is not None:
+            self._thread.deleteLater()
         self._worker = None
         self._thread = None
 

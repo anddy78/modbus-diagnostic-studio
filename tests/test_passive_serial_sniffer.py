@@ -46,6 +46,21 @@ def make_config() -> PassiveSerialSnifferConfig:
     )
 
 
+def make_small_config(
+    *,
+    max_events: int = 2,
+    max_exchanges: int = 1,
+) -> PassiveSerialSnifferConfig:
+    return PassiveSerialSnifferConfig(
+        connection=SerialConnectionSettings(port="COM9", timeout=0.1),
+        framer=RtuFramerConfig(baudrate=9600),
+        matcher_timeout_ms=200.0,
+        read_size=256,
+        max_events=max_events,
+        max_exchanges=max_exchanges,
+    )
+
+
 def dtsu71_fast_request() -> bytes:
     return append_crc(bytes.fromhex("0B 03 08 36 00 2A"))
 
@@ -191,3 +206,47 @@ def test_fake_serial_write_is_never_called() -> None:
     sniffer.poll_once(1.01)
 
     assert fake_serial.write_calls == 0
+
+
+def test_snapshot_limits_events_to_max_events() -> None:
+    fake_serial = FakeSerial([dtsu71_fast_request(), simple_response(), dtsu71_slow_request(), b""])
+    sniffer = PassiveSerialSniffer(
+        make_small_config(max_events=2),
+        serial_factory=lambda settings: fake_serial,
+    )
+    sniffer.open()
+
+    sniffer.poll_once(1.0)
+    sniffer.poll_once(1.01)
+    sniffer.poll_once(1.02)
+    result = sniffer.poll_once(1.03)
+
+    assert len(result.events) == 2
+    assert result.events[0].classification == "read_response"
+    assert result.events[1].address == 2158
+
+
+def test_snapshot_limits_exchanges_to_max_exchanges() -> None:
+    fake_serial = FakeSerial(
+        [
+            dtsu71_fast_request(),
+            simple_response(),
+            dtsu71_slow_request(),
+            simple_response(),
+            b"",
+        ]
+    )
+    sniffer = PassiveSerialSniffer(
+        make_small_config(max_exchanges=1),
+        serial_factory=lambda settings: fake_serial,
+    )
+    sniffer.open()
+
+    sniffer.poll_once(1.0)
+    sniffer.poll_once(1.01)
+    sniffer.poll_once(1.02)
+    sniffer.poll_once(1.03)
+    result = sniffer.poll_once(1.04)
+
+    assert len(result.exchanges) == 1
+    assert result.exchanges[0].request.address == 2158

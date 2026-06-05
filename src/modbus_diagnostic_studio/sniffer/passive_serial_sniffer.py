@@ -7,6 +7,7 @@ This module must never transmit.
 from __future__ import annotations
 
 import time
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -47,12 +48,18 @@ class PassiveSerialSnifferConfig:
     framer: RtuFramerConfig
     matcher_timeout_ms: float = 1000.0
     read_size: int = 256
+    max_events: int = 1000
+    max_exchanges: int = 1000
 
     def __post_init__(self) -> None:
         if self.matcher_timeout_ms <= 0:
             raise ValueError("Matcher timeout must be > 0")
         if self.read_size <= 0:
             raise ValueError("Read size must be > 0")
+        if self.max_events <= 0:
+            raise ValueError("Max events must be > 0")
+        if self.max_exchanges <= 0:
+            raise ValueError("Max exchanges must be > 0")
 
 
 class PassiveSerialSniffer:
@@ -75,8 +82,8 @@ class PassiveSerialSniffer:
         self._framer = RtuStreamFramer(config.framer)
         self._matcher = RequestResponseMatcher(timeout_ms=config.matcher_timeout_ms)
         self._stats = SnifferStatsCollector()
-        self._events: list[CaptureFrameEvent] = []
-        self._exchanges: list[MatchedExchange] = []
+        self._events: deque[CaptureFrameEvent] = deque(maxlen=config.max_events)
+        self._exchanges: deque[MatchedExchange] = deque(maxlen=config.max_exchanges)
 
     @property
     def is_open(self) -> bool:
@@ -153,14 +160,15 @@ class PassiveSerialSniffer:
     def snapshot(self) -> PassiveSnifferSnapshot:
         """Return the current accumulated sniffer view."""
         stats = self._stats.snapshot()
+        event_list = list(self._events)
         diagnosis = build_preliminary_diagnosis(stats)
         fingerprint_scores = (
-            rank_communication_profiles(self._communication_profiles, self._events)
+            rank_communication_profiles(self._communication_profiles, event_list)
             if self._communication_profiles
             else []
         )
         return PassiveSnifferSnapshot(
-            events=list(self._events),
+            events=event_list,
             exchanges=list(self._exchanges),
             stats=stats,
             diagnosis=diagnosis,

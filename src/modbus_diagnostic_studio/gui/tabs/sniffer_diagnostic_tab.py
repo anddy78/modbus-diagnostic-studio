@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QObject, QThread, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -121,6 +121,8 @@ class SnifferWorker(QObject):
 class SnifferDiagnosticTab(QWidget):
     """Passive serial sniffer UI."""
 
+    stop_requested = Signal()
+
     def __init__(self) -> None:
         super().__init__()
         self._thread: QThread | None = None
@@ -130,7 +132,7 @@ class SnifferDiagnosticTab(QWidget):
         # TODO: inject an application-wide ModeManager from ApplicationState.
         self._mode_manager = ModeManager()
 
-        self.banner_label = QLabel("PASSIVE SNIFFER — DOES NOT TRANSMIT")
+        self.banner_label = QLabel("PASSIVE SNIFFER - DOES NOT TRANSMIT")
         banner_font = self.banner_label.font()
         banner_font.setPointSize(max(banner_font.pointSize() + 4, 14))
         banner_font.setBold(True)
@@ -329,9 +331,11 @@ class SnifferDiagnosticTab(QWidget):
         self._worker = SnifferWorker(request)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.start)
+        self.stop_requested.connect(self._worker.stop, Qt.QueuedConnection)
         self._worker.snapshot_ready.connect(self._handle_snapshot)
         self._worker.failed.connect(self._handle_error)
         self._worker.stopped.connect(self._handle_worker_stopped)
+        self._worker.stopped.connect(self._thread.quit)
         self._thread.finished.connect(self._cleanup_worker)
         self._thread.start()
 
@@ -341,7 +345,7 @@ class SnifferDiagnosticTab(QWidget):
             self._finish_stop("Stopped.")
             return
         self.status_label.setText("Stopping passive sniffer...")
-        self._worker.stop()
+        self.stop_requested.emit()
 
     def clear_view(self) -> None:
         """Clear visible diagnostic data without starting any serial action."""
@@ -380,18 +384,16 @@ class SnifferDiagnosticTab(QWidget):
 
     @Slot()
     def _cleanup_worker(self) -> None:
-        if self._thread is not None:
-            self._thread.deleteLater()
         if self._worker is not None:
             self._worker.deleteLater()
+        if self._thread is not None:
+            self._thread.deleteLater()
         self._thread = None
         self._worker = None
 
     def _finish_stop(self, status: str) -> None:
         self._set_running_state(False)
         self._release_reserved_port()
-        if self._thread is not None:
-            self._thread.quit()
         self.status_label.setText(status)
 
     def _set_running_state(self, running: bool) -> None:
