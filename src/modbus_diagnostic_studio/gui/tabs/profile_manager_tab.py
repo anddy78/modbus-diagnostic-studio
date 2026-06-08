@@ -49,7 +49,7 @@ class ProfileManagerTab(QWidget):
         self._device_profile_errors: list[str] = []
         self._register_profiles: dict[str, object] = {}
 
-        self.status_label = QLabel("Profile Manager loads built-in and user profile metadata only.")
+        self.status_label = QLabel("Manage device/register profile metadata.")
 
         self.reload_button = QPushButton("Reload")
         self.reload_button.clicked.connect(self.reload_profiles)
@@ -201,12 +201,13 @@ class ProfileManagerTab(QWidget):
         error_count = len(self._device_profile_errors)
         if error_count:
             self.status_label.setText(
-                "Loaded "
+                "Manage device/register profile metadata. Loaded "
                 f"{device_profile_count} device profiles and {register_profile_count} register profiles "
                 f"with {error_count} user file issue(s)."
             )
         else:
             self.status_label.setText(
+                "Manage device/register profile metadata. "
                 f"Loaded {device_profile_count} device profiles and {register_profile_count} register profiles."
             )
 

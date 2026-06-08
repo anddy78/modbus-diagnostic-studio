@@ -361,8 +361,7 @@ class AdvancedMasterTab(QWidget):
 
         # ── status ────────────────────────────────────────────────────────
         self.status_label = QLabel(
-            "Active master mode. A request is sent only when Read Once or "
-            "Start Continuous is pressed."
+            "Advanced reads, decoding, logging, and guarded writes."
         )
 
         # ── connection / request form ─────────────────────────────────────
@@ -670,8 +669,8 @@ class AdvancedMasterTab(QWidget):
             if index >= 0:
                 self.port_combo.setCurrentIndex(index)
         self.status_label.setText(
-            f"{self.port_combo.count()} port(s) detected. "
-            "Active read — request sent only on demand."
+            "Advanced reads, decoding, logging, and guarded writes. "
+            f"{self.port_combo.count()} port(s) detected."
         )
 
     # ── function selector adapts quantity + decode ────────────────────────

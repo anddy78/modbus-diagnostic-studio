@@ -55,9 +55,47 @@ def test_main_window_theme_references_exist() -> None:
     assert set(window.theme_actions) == {"system", "light", "dark"}
     assert {"quick_start", "safety", "about"} <= set(window.help_actions)
     assert window.tabs is not None
-    assert any(
-        window.tabs.tabText(index) == "Profile Manager"
-        for index in range(window.tabs.count())
+    tab_names = [window.tabs.tabText(index) for index in range(window.tabs.count())]
+
+    assert tab_names == [
+        "Serial Ports",
+        "Meter Dashboard",
+        "Advanced Master",
+        "Slave Simulator",
+        "Sniffer Diagnostic",
+        "Raw Frame Decoder",
+        "Basic Master",
+        "Profile Manager",
+    ]
+    assert "Profiles" not in tab_names
+    assert "Profile Manager" in tab_names
+
+
+def test_tab_intro_status_labels_match_current_ux_copy() -> None:
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    from modbus_diagnostic_studio.gui.tabs.advanced_master_tab import AdvancedMasterTab
+    from modbus_diagnostic_studio.gui.tabs.decoder_tab import DecoderTab
+    from modbus_diagnostic_studio.gui.tabs.master_read_tab import MasterReadTab
+    from modbus_diagnostic_studio.gui.tabs.meters_tab import MetersTab
+    from modbus_diagnostic_studio.gui.tabs.profile_manager_tab import ProfileManagerTab
+
+    app = QApplication.instance() or QApplication([])
+
+    assert MetersTab().status_label.text().startswith(
+        "Friendly profile-based meter reading."
+    )
+    assert MasterReadTab().status_label.text().startswith(
+        "Simple one-shot Modbus reads."
+    )
+    assert AdvancedMasterTab().status_label.text().startswith(
+        "Advanced reads, decoding, logging, and guarded writes."
+    )
+    assert DecoderTab().status_label.text() == "Offline decoder for pasted RTU frames."
+    assert ProfileManagerTab().status_label.text().startswith(
+        "Manage device/register profile metadata."
     )
 
 

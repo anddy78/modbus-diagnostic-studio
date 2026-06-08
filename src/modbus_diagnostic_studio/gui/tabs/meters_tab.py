@@ -107,7 +107,7 @@ class MetersTab(QWidget):
         self._reading_busy: bool = False
 
         # ── status ──────────────────────────────────────────────────────
-        self.status_label = QLabel("Select a meter model and press Read Once or Start Continuous Read.")
+        self.status_label = QLabel("Friendly profile-based meter reading.")
 
         # ── connection form ──────────────────────────────────────────────
         self.port_combo = QComboBox()
@@ -232,6 +232,7 @@ class MetersTab(QWidget):
             if index >= 0:
                 self.port_combo.setCurrentIndex(index)
         self.status_label.setText(
+            "Friendly profile-based meter reading. "
             f"{self.port_combo.count()} port(s) detected."
         )
 

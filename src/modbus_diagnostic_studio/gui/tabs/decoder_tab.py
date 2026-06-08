@@ -34,6 +34,7 @@ class DecoderTab(QWidget):
     def __init__(self) -> None:
         super().__init__()
 
+        self.status_label = QLabel("Offline decoder for pasted RTU frames.")
         self.input = QTextEdit()
         self.input.setPlaceholderText("01 03 00 00 00 0A C5 CD")
         self.input.setAcceptRichText(False)
@@ -51,6 +52,7 @@ class DecoderTab(QWidget):
             form.addRow(field, label)
 
         layout = QVBoxLayout()
+        layout.addWidget(self.status_label)
         layout.addWidget(QLabel("Raw hex frame"))
         layout.addWidget(self.input)
         layout.addWidget(self.decode_button)

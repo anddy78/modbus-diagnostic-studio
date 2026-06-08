@@ -9,15 +9,15 @@ Use this checklist to validate the beta GUI on Windows.
 
 ## Core GUI
 
-- [ ] Connection tab lists COM ports.
-- [ ] Decoder tab decodes raw hex.
-- [ ] Profiles tab loads built-in profiles.
+- [ ] Serial Ports tab lists COM ports.
+- [ ] Raw Frame Decoder tab decodes raw hex.
 - [ ] Profile Manager tab loads built-in device profiles.
 - [ ] Profile Manager lists built-in register profiles.
 - [ ] Profile Manager shows register preview with descriptions.
 - [ ] Profile Manager validates a selected device profile.
 - [ ] Profile Manager opens `device_profiles\user`.
-- [ ] Meters tab opens.
+- [ ] Meter Dashboard tab opens.
+- [ ] Main window does not show a separate `Profiles` tab.
 - [ ] Theme selector works.
 
 ## Advanced Master
@@ -49,14 +49,14 @@ Use this checklist to validate the beta GUI on Windows.
 - [ ] `SDM630`/`DTSU666` works in `Three phase balanced` mode.
 - [ ] `SDM630`/`DTSU666` works in `Three phase meter / single-phase load` mode with load on the selected phase.
 
-## Master Read
+## Basic Master
 
-- [ ] Master Read profile selector shows known registers.
+- [ ] Basic Master profile selector shows known registers.
 - [ ] Selecting a known register updates function, address, and quantity without auto-reading.
 
 ## End-To-End Local Simulation
 
-- [ ] Advanced Master or Master Read can read changing demo values from Slave Simulator when the simulator server is started locally.
+- [ ] Advanced Master or Basic Master can read changing demo values from Slave Simulator when the simulator server is started locally.
 
 ## Safety Notes
 

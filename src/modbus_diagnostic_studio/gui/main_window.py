@@ -37,14 +37,14 @@ class MainWindow(QMainWindow):
         self.help_actions: dict[str, QAction] = {}
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(ConnectionTab(), "Connection")
-        self.tabs.addTab(MetersTab(self.app_state), "Meters")
+        self._legacy_profiles_tab_class = ProfilesTab
+        self.tabs.addTab(ConnectionTab(), "Serial Ports")
+        self.tabs.addTab(MetersTab(self.app_state), "Meter Dashboard")
         self.tabs.addTab(AdvancedMasterTab(self.app_state), "Advanced Master")
         self.tabs.addTab(SlaveSimulatorTab(self.app_state), "Slave Simulator")
-        self.tabs.addTab(DecoderTab(), "Decoder")
-        self.tabs.addTab(MasterReadTab(self.app_state), "Master Read")
         self.tabs.addTab(SnifferDiagnosticTab(self.app_state), "Sniffer Diagnostic")
-        self.tabs.addTab(ProfilesTab(), "Profiles")
+        self.tabs.addTab(DecoderTab(), "Raw Frame Decoder")
+        self.tabs.addTab(MasterReadTab(self.app_state), "Basic Master")
         self.tabs.addTab(ProfileManagerTab(), "Profile Manager")
 
         self.setCentralWidget(self.tabs)

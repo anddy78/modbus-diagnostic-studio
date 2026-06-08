@@ -117,7 +117,7 @@ class MasterReadTab(QWidget):
         self._mode_manager = self._app_state.mode_manager
         self._reserved_port: str | None = None
 
-        self.status_label = QLabel("Active master mode. A request is sent only when Read is pressed.")
+        self.status_label = QLabel("Simple one-shot Modbus reads.")
 
         self.port_combo = QComboBox()
         self.refresh_button = QPushButton("Refresh Ports")
@@ -258,7 +258,10 @@ class MasterReadTab(QWidget):
             index = self.port_combo.findData(current)
             if index >= 0:
                 self.port_combo.setCurrentIndex(index)
-        self.status_label.setText(f"{self.port_combo.count()} port(s) detected. Active read sends one request.")
+        self.status_label.setText(
+            "Simple one-shot Modbus reads. "
+            f"{self.port_combo.count()} port(s) detected."
+        )
 
     def read_once(self) -> None:
         """Start one active master read."""

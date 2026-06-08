@@ -28,8 +28,8 @@ def attach_help_menu(window: QMainWindow) -> None:
         "quick_start": (
             "Quick Start",
             "Quick Start",
-            "Connection lists COM ports without opening them.\n\n"
-            "Meters reads known meter profiles with a friendlier view.\n\n"
+            "Serial Ports lists COM ports without opening them.\n\n"
+            "Meter Dashboard reads known meter profiles with a friendlier view.\n\n"
             "Advanced Master performs generic Modbus reads and guarded writes.\n\n"
             "Slave Simulator responds as a local Modbus slave for safe testing.\n\n"
             "Sniffer Diagnostic listens passively and does not transmit.",

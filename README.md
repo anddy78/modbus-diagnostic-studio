@@ -30,6 +30,17 @@ The theme selector will support `System`, `Light` and `Dark` modes.
 - Meter simulation
 - Windows portable/installer packaging
 
+## Main Tabs
+
+- `Serial Ports`: lists detected COM ports without opening them
+- `Meter Dashboard`: friendly profile-based meter reading
+- `Advanced Master`: advanced reads, decoding, logging, and guarded writes
+- `Slave Simulator`: local Modbus slave simulation for safe testing
+- `Sniffer Diagnostic`: passive bus diagnostics that never transmit
+- `Raw Frame Decoder`: offline decoder for pasted RTU frames
+- `Basic Master`: simple one-shot Modbus reads
+- `Profile Manager`: manage device/register profile metadata
+
 ## Initial Supported Profiles
 
 - Chint DTSU71
@@ -107,6 +118,7 @@ For Master Write testing in this beta, use the built-in Slave Simulator first. D
 - Register Profiles describe the register map exposed by a device acting as a slave.
 - Communication Profiles describe the expected polling pattern between a master and a slave.
 - Device Profiles group those roles under one equipment identity and are managed from the `Profile Manager` tab.
+- The legacy `Profiles` widget remains in the codebase for compatibility, but the main GUI now uses only `Profile Manager`.
 
 ### Where files go
 
