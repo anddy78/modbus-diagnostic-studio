@@ -75,3 +75,10 @@ The `Slave Simulator`, `Master Read`, and `Advanced Master` tabs can also use bu
 
 The `Slave Simulator` can also use a selected register profile to generate reasonable demo meter values in its local `SlaveDatastore`.
 This generation is local to the simulator, can use optional smooth random variation, and does not transmit Modbus requests to external equipment.
+
+Typical simulator examples:
+- `SDM230` or `generic_meter` with `Single phase`
+- `SDM630`, `DTSU666`, or similar three-phase profile with `Three phase balanced`
+- `SDM630` or `DTSU666` with `Three phase meter / single-phase load` to simulate a three-phase meter where only one phase carries load
+
+These scenarios only assist the local simulator datastore. They do not automatically start the slave server or trigger any external Modbus traffic.

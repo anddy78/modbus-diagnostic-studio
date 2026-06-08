@@ -6,6 +6,7 @@ import random
 
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QFormLayout,
@@ -34,7 +35,11 @@ from modbus_diagnostic_studio.services.application_state import ApplicationState
 from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
 from modbus_diagnostic_studio.services.paths import ensure_runtime_dirs, user_device_profiles_dir
 from modbus_diagnostic_studio.slave.datastore import SlaveDatastore
-from modbus_diagnostic_studio.slave.demo_values import build_demo_register_values
+from modbus_diagnostic_studio.slave.demo_values import (
+    MeterDemoScenario,
+    MeterScenarioMode,
+    build_demo_register_values,
+)
 from modbus_diagnostic_studio.slave.rtu_server import RtuSlaveServer, RtuSlaveServerConfig, RtuSlaveServerStats
 from modbus_diagnostic_studio.slave.simulator_engine import ModbusSlaveSimulator
 from modbus_diagnostic_studio.transports.serial_ports import list_serial_ports
@@ -125,6 +130,8 @@ class SlaveSimulatorTab(QWidget):
         self._register_profiles: dict[str, object] = {}
         self._demo_timer: QTimer | None = None
         self._demo_rng = random.Random()
+        self._demo_energy_import_kwh = 1234.5
+        self._demo_energy_export_kwh = 0.0
 
         # ── active mode banner ────────────────────────────────────────────
         self.banner_label = QLabel("ACTIVE SLAVE SIMULATOR — RESPONDS TO MASTER REQUESTS")
@@ -170,18 +177,77 @@ class SlaveSimulatorTab(QWidget):
         self.load_profile_registers_button = QPushButton("Load Profile Registers")
         self.load_profile_registers_button.clicked.connect(self._load_selected_known_registers)
 
+        self.demo_mode_combo = QComboBox()
+        self.demo_mode_combo.addItem("Single phase", MeterScenarioMode.SINGLE_PHASE)
+        self.demo_mode_combo.addItem(
+            "Three phase balanced",
+            MeterScenarioMode.THREE_PHASE_BALANCED,
+        )
+        self.demo_mode_combo.addItem(
+            "Three phase unbalanced",
+            MeterScenarioMode.THREE_PHASE_UNBALANCED,
+        )
+        self.demo_mode_combo.addItem(
+            "Three phase meter / single-phase load",
+            MeterScenarioMode.THREE_PHASE_SINGLE_PHASE_LOAD,
+        )
+        self.demo_mode_combo.currentIndexChanged.connect(self._update_demo_control_state)
+
+        self.active_phase_combo = QComboBox()
+        self.active_phase_combo.addItems(["L1", "L2", "L3"])
+
+        self.voltage_ln_spin = QDoubleSpinBox()
+        self.voltage_ln_spin.setRange(100.0, 300.0)
+        self.voltage_ln_spin.setValue(230.0)
+        self.voltage_ln_spin.setDecimals(1)
+
+        self.frequency_spin = QDoubleSpinBox()
+        self.frequency_spin.setRange(45.0, 65.0)
+        self.frequency_spin.setValue(50.0)
+        self.frequency_spin.setDecimals(2)
+
+        self.total_active_power_spin = QDoubleSpinBox()
+        self.total_active_power_spin.setRange(0.0, 100000.0)
+        self.total_active_power_spin.setValue(3000.0)
+        self.total_active_power_spin.setDecimals(1)
+        self.total_active_power_spin.setSuffix(" W")
+
+        self.power_factor_spin = QDoubleSpinBox()
+        self.power_factor_spin.setRange(0.1, 1.0)
+        self.power_factor_spin.setValue(0.98)
+        self.power_factor_spin.setDecimals(3)
+
+        self.imbalance_percent_spin = QDoubleSpinBox()
+        self.imbalance_percent_spin.setRange(0.0, 100.0)
+        self.imbalance_percent_spin.setValue(10.0)
+        self.imbalance_percent_spin.setDecimals(1)
+        self.imbalance_percent_spin.setSuffix(" %")
+
+        self.manual_phase_power_check = QCheckBox("Manual per-phase power")
+        self.manual_phase_power_check.toggled.connect(self._update_demo_control_state)
+        self.phase_l1_power_spin = QDoubleSpinBox()
+        self.phase_l1_power_spin.setRange(0.0, 100000.0)
+        self.phase_l1_power_spin.setValue(1000.0)
+        self.phase_l1_power_spin.setSuffix(" W")
+        self.phase_l2_power_spin = QDoubleSpinBox()
+        self.phase_l2_power_spin.setRange(0.0, 100000.0)
+        self.phase_l2_power_spin.setValue(1000.0)
+        self.phase_l2_power_spin.setSuffix(" W")
+        self.phase_l3_power_spin = QDoubleSpinBox()
+        self.phase_l3_power_spin.setRange(0.0, 100000.0)
+        self.phase_l3_power_spin.setValue(1000.0)
+        self.phase_l3_power_spin.setSuffix(" W")
+
+        self.accumulate_energy_check = QCheckBox("Accumulate energy")
+
         self.generate_demo_values_button = QPushButton("Generate Demo Meter Values")
         self.generate_demo_values_button.clicked.connect(self.generate_demo_meter_values)
-        self.random_variation_combo = QComboBox()
-        self.random_variation_combo.addItem("Off", False)
-        self.random_variation_combo.addItem("On", True)
+        self.random_variation_check = QCheckBox("Random variation")
         self.variation_percent_spin = QSpinBox()
         self.variation_percent_spin.setRange(0, 20)
         self.variation_percent_spin.setValue(2)
-        self.auto_refresh_demo_combo = QComboBox()
-        self.auto_refresh_demo_combo.addItem("Off", False)
-        self.auto_refresh_demo_combo.addItem("On", True)
-        self.auto_refresh_demo_combo.currentIndexChanged.connect(self._update_demo_timer_state)
+        self.auto_refresh_demo_check = QCheckBox("Auto refresh demo values")
+        self.auto_refresh_demo_check.toggled.connect(self._update_demo_timer_state)
         self.demo_update_interval_spin = QSpinBox()
         self.demo_update_interval_spin.setRange(1, 60)
         self.demo_update_interval_spin.setValue(2)
@@ -260,6 +326,7 @@ class SlaveSimulatorTab(QWidget):
         self._attach_help()
         self.refresh_ports()
         self._reload_profile_selectors()
+        self._update_demo_control_state()
 
     def _build_layout(self) -> None:
         form = QFormLayout()
@@ -314,10 +381,22 @@ class SlaveSimulatorTab(QWidget):
         editor_form.addRow("Range write", range_row)
 
         demo_form = QFormLayout()
+        demo_form.addRow("Meter scenario mode", self.demo_mode_combo)
+        demo_form.addRow("Active phase", self.active_phase_combo)
+        demo_form.addRow("Voltage L-N", self.voltage_ln_spin)
+        demo_form.addRow("Frequency", self.frequency_spin)
+        demo_form.addRow("Total active power", self.total_active_power_spin)
+        demo_form.addRow("Power factor", self.power_factor_spin)
+        demo_form.addRow("Imbalance %", self.imbalance_percent_spin)
+        demo_form.addRow(self.manual_phase_power_check)
+        demo_form.addRow("P L1", self.phase_l1_power_spin)
+        demo_form.addRow("P L2", self.phase_l2_power_spin)
+        demo_form.addRow("P L3", self.phase_l3_power_spin)
+        demo_form.addRow(self.accumulate_energy_check)
         demo_form.addRow(self.generate_demo_values_button)
-        demo_form.addRow("Random variation", self.random_variation_combo)
+        demo_form.addRow(self.random_variation_check)
         demo_form.addRow("Variation %", self.variation_percent_spin)
-        demo_form.addRow("Auto refresh demo values", self.auto_refresh_demo_combo)
+        demo_form.addRow(self.auto_refresh_demo_check)
         demo_form.addRow("Update interval", self.demo_update_interval_spin)
 
         view_row = QHBoxLayout()
@@ -377,6 +456,31 @@ class SlaveSimulatorTab(QWidget):
             self.generate_demo_values_button,
             "Generate Demo Meter Values",
             "Populate the local slave datastore with reasonable demo values for the selected profile. This only changes the local simulator datastore.",
+        )
+        set_help(
+            self.demo_mode_combo,
+            "Meter scenario mode",
+            "Choose whether the demo meter behaves as single-phase, balanced three-phase, unbalanced three-phase, or a three-phase meter with load on one phase only.",
+        )
+        set_help(
+            self.total_active_power_spin,
+            "Total active power",
+            "Target active power for the demo scenario. Per-phase power is derived automatically unless manual phase power is enabled.",
+        )
+        set_help(
+            self.power_factor_spin,
+            "Power factor",
+            "Used to keep active, reactive, apparent power, and current values coherent.",
+        )
+        set_help(
+            self.active_phase_combo,
+            "Active phase",
+            "Phase that carries the load in the single-phase-on-three-phase-meter scenario.",
+        )
+        set_help(
+            self.accumulate_energy_check,
+            "Accumulate energy",
+            "When auto refresh is enabled, imported energy increases based on total active power and elapsed time.",
         )
 
     # ── port refresh ──────────────────────────────────────────────────────
@@ -462,6 +566,9 @@ class SlaveSimulatorTab(QWidget):
         self._refresh_table()
 
     def generate_demo_meter_values(self) -> None:
+        self._generate_demo_meter_values(elapsed_seconds=0.0)
+
+    def _generate_demo_meter_values(self, elapsed_seconds: float) -> None:
         profile_id = self.register_profile_combo.currentData()
         if profile_id is None:
             self._set_status("Select a register profile before generating demo values.")
@@ -471,13 +578,11 @@ class SlaveSimulatorTab(QWidget):
             self._set_status(f"Register profile {profile_id} is not available.")
             return
 
-        variation_percent = (
-            float(self.variation_percent_spin.value())
-            if bool(self.random_variation_combo.currentData())
-            else 0.0
-        )
+        variation_percent = float(self.variation_percent_spin.value()) if self.random_variation_check.isChecked() else 0.0
+        scenario = self._build_demo_scenario(elapsed_seconds)
         result = build_demo_register_values(
             profile,
+            scenario=scenario,
             variation_percent=variation_percent,
             rng=self._demo_rng,
         )
@@ -495,18 +600,22 @@ class SlaveSimulatorTab(QWidget):
                 return
 
         self._refresh_table()
+        self._demo_energy_import_kwh = scenario.energy_import_kwh
+        self._demo_energy_export_kwh = scenario.energy_export_kwh
         self._set_status(
-            f"Generated {result.generated_count} demo meter registers for {profile.profile_id} with {variation_percent:.0f}% variation."
+            f"Generated {result.generated_count} demo meter registers for {profile.profile_id} "
+            f"mode={scenario.mode}, P={scenario.total_active_power_w:.0f} W, PF={scenario.power_factor:.2f}, "
+            f"variation={variation_percent:.0f}%."
         )
 
     def _update_demo_timer_state(self) -> None:
-        enabled = bool(self.auto_refresh_demo_combo.currentData())
+        enabled = self.auto_refresh_demo_check.isChecked()
         if not enabled:
             self._stop_demo_timer()
             return
         if self._demo_timer is None:
             self._demo_timer = QTimer(self)
-            self._demo_timer.timeout.connect(self.generate_demo_meter_values)
+            self._demo_timer.timeout.connect(self._auto_refresh_demo_values)
         self._demo_timer.setInterval(self.demo_update_interval_spin.value() * 1000)
         self._demo_timer.start()
         self._set_status("Auto refresh demo values enabled.")
@@ -519,6 +628,49 @@ class SlaveSimulatorTab(QWidget):
         if self._demo_timer is None:
             return
         self._demo_timer.stop()
+
+    def _auto_refresh_demo_values(self) -> None:
+        self._generate_demo_meter_values(
+            elapsed_seconds=float(self.demo_update_interval_spin.value())
+        )
+
+    def _build_demo_scenario(self, elapsed_seconds: float) -> MeterDemoScenario:
+        phase_l1 = self.phase_l1_power_spin.value() if self.manual_phase_power_check.isChecked() else None
+        phase_l2 = self.phase_l2_power_spin.value() if self.manual_phase_power_check.isChecked() else None
+        phase_l3 = self.phase_l3_power_spin.value() if self.manual_phase_power_check.isChecked() else None
+        total_power = (
+            float(self.phase_l1_power_spin.value() + self.phase_l2_power_spin.value() + self.phase_l3_power_spin.value())
+            if self.manual_phase_power_check.isChecked()
+            else float(self.total_active_power_spin.value())
+        )
+        return MeterDemoScenario(
+            mode=str(self.demo_mode_combo.currentData()),
+            active_phase=self.active_phase_combo.currentText(),
+            voltage_ln=float(self.voltage_ln_spin.value()),
+            frequency_hz=float(self.frequency_spin.value()),
+            total_active_power_w=total_power,
+            power_factor=float(self.power_factor_spin.value()),
+            phase_l1_power_w=phase_l1,
+            phase_l2_power_w=phase_l2,
+            phase_l3_power_w=phase_l3,
+            imbalance_percent=float(self.imbalance_percent_spin.value()),
+            energy_import_kwh=self._demo_energy_import_kwh,
+            energy_export_kwh=self._demo_energy_export_kwh,
+            accumulate_energy=self.accumulate_energy_check.isChecked(),
+            elapsed_seconds=elapsed_seconds,
+        )
+
+    def _update_demo_control_state(self) -> None:
+        mode = str(self.demo_mode_combo.currentData())
+        single_phase_load_mode = mode == MeterScenarioMode.THREE_PHASE_SINGLE_PHASE_LOAD
+        unbalanced_mode = mode == MeterScenarioMode.THREE_PHASE_UNBALANCED
+        manual_mode = self.manual_phase_power_check.isChecked()
+
+        self.active_phase_combo.setEnabled(single_phase_load_mode)
+        self.imbalance_percent_spin.setEnabled(unbalanced_mode and not manual_mode)
+        self.phase_l1_power_spin.setEnabled(manual_mode)
+        self.phase_l2_power_spin.setEnabled(manual_mode)
+        self.phase_l3_power_spin.setEnabled(manual_mode)
 
     def _reload_profile_selectors(self) -> None:
         ensure_runtime_dirs()

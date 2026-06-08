@@ -45,6 +45,9 @@ Use this checklist to validate the beta GUI on Windows.
 - [ ] Generate Demo Meter Values fills the local datastore with non-zero meter-like values.
 - [ ] Random variation slightly changes demo values when enabled.
 - [ ] Auto refresh demo values updates the local datastore without opening a port.
+- [ ] `SDM230` or `generic_meter` works in `Single phase` mode.
+- [ ] `SDM630`/`DTSU666` works in `Three phase balanced` mode.
+- [ ] `SDM630`/`DTSU666` works in `Three phase meter / single-phase load` mode with load on the selected phase.
 
 ## Master Read
 
