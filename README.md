@@ -36,10 +36,14 @@ The theme selector will support `System`, `Light` and `Dark` modes.
 - `Meter Dashboard`: friendly profile-based meter reading
 - `Advanced Master`: advanced reads, decoding, logging, and guarded writes
 - `Slave Simulator`: local Modbus slave simulation for safe testing
+  - reusable scenario presets can be saved and loaded from `scenarios\slave`
 - `Sniffer Diagnostic`: passive bus diagnostics that never transmit
+  - separate poll interval, UI update interval, and fingerprint interval controls
+  - display pause/resume without stopping capture
 - `Raw Frame Decoder`: offline decoder for pasted RTU frames
 - `Basic Master`: simple one-shot Modbus reads
 - `Profile Manager`: manage device/register profile metadata
+- `Diagnostic Report`: centralize notes and export diagnostic evidence as JSON, CSV, or HTML
 
 ## Initial Supported Profiles
 
@@ -113,12 +117,28 @@ The final application must run as:
 
 For Master Write testing in this beta, use the built-in Slave Simulator first. Do not write to real equipment unless you have explicit authorization.
 
+### Reusable slave scenarios
+
+The `Slave Simulator` can save and load reusable JSON presets for electrical demo scenarios such as:
+- `SDM230` single-phase 1 kW
+- `SDM630` balanced three-phase 5 kW
+- `SDM630` with single-phase load on `L1`
+
+Scenario loading only restores controls and selected profiles. It does not open ports, does not transmit, and does not apply values to the datastore until `Generate Demo Meter Values` is pressed.
+
 ### Profile model layers
 
 - Register Profiles describe the register map exposed by a device acting as a slave.
 - Communication Profiles describe the expected polling pattern between a master and a slave.
 - Device Profiles group those roles under one equipment identity and are managed from the `Profile Manager` tab.
 - The legacy `Profiles` widget remains in the codebase for compatibility, but the main GUI now uses only `Profile Manager`.
+
+### Diagnostic Report
+
+- `Diagnostic Report` centralizes session metadata, manual notes, and exported evidence.
+- It can save/load session JSON and export CSV/HTML reports.
+- This tab does not open serial ports and does not transmit.
+- Automatic cross-tab evidence capture is incremental; v1 already accepts manual notes and can receive lightweight entries from `Advanced Master`.
 
 ### Where files go
 

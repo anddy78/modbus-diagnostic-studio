@@ -32,7 +32,8 @@ def attach_help_menu(window: QMainWindow) -> None:
             "Meter Dashboard reads known meter profiles with a friendlier view.\n\n"
             "Advanced Master performs generic Modbus reads and guarded writes.\n\n"
             "Slave Simulator responds as a local Modbus slave for safe testing.\n\n"
-            "Sniffer Diagnostic listens passively and does not transmit.",
+            "Sniffer Diagnostic listens passively and does not transmit.\n\n"
+            "Diagnostic Report centralizes notes and exported evidence without opening ports.",
         ),
         "safety": (
             "Safety / Write Warning",

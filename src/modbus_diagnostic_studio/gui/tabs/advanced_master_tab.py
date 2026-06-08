@@ -40,6 +40,7 @@ from modbus_diagnostic_studio.master.operation_log import (
     write_log_csv,
     write_log_jsonl,
 )
+from modbus_diagnostic_studio.models.diagnostic_session import DiagnosticSessionEvent
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
 from modbus_diagnostic_studio.profiles.loader import list_builtin_profiles, load_builtin_profile
 from modbus_diagnostic_studio.services.application_state import ApplicationState
@@ -1177,6 +1178,7 @@ class AdvancedMasterTab(QWidget):
                 self.log_table.removeRow(0)
         self._operation_log.append(entry)
         self._append_log_row(entry)
+        self._record_session_event(entry)
 
     def _append_log_row(self, entry: MasterOperationLogEntry) -> None:
         row = self.log_table.rowCount()
@@ -1194,6 +1196,39 @@ class AdvancedMasterTab(QWidget):
         ]):
             self.log_table.setItem(row, col, QTableWidgetItem(val))
         self.log_table.scrollToBottom()
+
+    def _record_session_event(self, entry: MasterOperationLogEntry) -> None:
+        """Mirror an operation log entry into the active diagnostic session if one exists."""
+        severity = "info"
+        event_type = entry.operation
+        if entry.status == "cancelled":
+            severity = "warning"
+        elif entry.status == "error":
+            severity = "error"
+            if "timed out" in entry.message.lower() or "no response" in entry.message.lower():
+                event_type = "timeout"
+        try:
+            self._app_state.add_session_event(
+                DiagnosticSessionEvent(
+                    timestamp=entry.timestamp,
+                    source="advanced_master",
+                    event_type=event_type,
+                    severity=severity,
+                    summary=entry.message,
+                    details={
+                        "operation": entry.operation,
+                        "com_port": entry.com_port,
+                        "slave_id": entry.slave_id,
+                        "function_code": entry.function_code,
+                        "address": entry.address,
+                        "quantity": entry.quantity,
+                        "values": entry.values,
+                        "status": entry.status,
+                    },
+                )
+            )
+        except Exception:
+            return
 
     def _clear_log(self) -> None:
         self._operation_log.clear()

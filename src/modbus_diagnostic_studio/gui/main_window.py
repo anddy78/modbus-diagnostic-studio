@@ -9,6 +9,7 @@ from modbus_diagnostic_studio.gui.help import attach_help_menu
 from modbus_diagnostic_studio.gui.tabs.advanced_master_tab import AdvancedMasterTab
 from modbus_diagnostic_studio.gui.tabs.connection_tab import ConnectionTab
 from modbus_diagnostic_studio.gui.tabs.decoder_tab import DecoderTab
+from modbus_diagnostic_studio.gui.tabs.diagnostic_report_tab import DiagnosticReportTab
 from modbus_diagnostic_studio.gui.tabs.master_read_tab import MasterReadTab
 from modbus_diagnostic_studio.gui.tabs.meters_tab import MetersTab
 from modbus_diagnostic_studio.gui.tabs.profile_manager_tab import ProfileManagerTab
@@ -46,6 +47,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(DecoderTab(), "Raw Frame Decoder")
         self.tabs.addTab(MasterReadTab(self.app_state), "Basic Master")
         self.tabs.addTab(ProfileManagerTab(), "Profile Manager")
+        self.tabs.addTab(DiagnosticReportTab(self.app_state), "Diagnostic Report")
 
         self.setCentralWidget(self.tabs)
         self._build_theme_menu()

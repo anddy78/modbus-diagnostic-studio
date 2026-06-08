@@ -18,6 +18,7 @@ Use this checklist to validate the beta GUI on Windows.
 - [ ] Profile Manager opens `device_profiles\user`.
 - [ ] Meter Dashboard tab opens.
 - [ ] Main window does not show a separate `Profiles` tab.
+- [ ] Diagnostic Report tab opens.
 - [ ] Theme selector works.
 
 ## Advanced Master
@@ -35,6 +36,9 @@ Use this checklist to validate the beta GUI on Windows.
 
 - [ ] Passive Sniffer Diagnostic starts and stops.
 - [ ] Passive Sniffer does not transmit.
+- [ ] Passive Sniffer exposes Poll interval, UI update interval, and Fingerprint interval controls.
+- [ ] Pause Display pauses visual refresh while capture keeps running.
+- [ ] Resume Display restores visual refresh without reopening the port.
 - [ ] Passive Sniffer exports captures to CSV and JSONL.
 
 ## Slave Simulator
@@ -42,6 +46,10 @@ Use this checklist to validate the beta GUI on Windows.
 - [ ] Slave Simulator starts and stops.
 - [ ] Slave Simulator profile selector shows known registers.
 - [ ] Selecting a known register updates bank and address without writing data.
+- [ ] Slave Simulator can save a scenario JSON preset.
+- [ ] Slave Simulator can load a scenario JSON preset back into controls.
+- [ ] Loading a scenario does not apply values to the datastore until `Generate Demo Meter Values`.
+- [ ] Open Scenarios Folder opens `scenarios\slave`.
 - [ ] Generate Demo Meter Values fills the local datastore with non-zero meter-like values.
 - [ ] Random variation slightly changes demo values when enabled.
 - [ ] Auto refresh demo values updates the local datastore without opening a port.
@@ -57,6 +65,16 @@ Use this checklist to validate the beta GUI on Windows.
 ## End-To-End Local Simulation
 
 - [ ] Advanced Master or Basic Master can read changing demo values from Slave Simulator when the simulator server is started locally.
+
+## Diagnostic Report
+
+- [ ] Diagnostic Report creates a new session.
+- [ ] Diagnostic Report adds a manual note event.
+- [ ] Diagnostic Report saves session JSON.
+- [ ] Diagnostic Report loads session JSON.
+- [ ] Diagnostic Report exports CSV.
+- [ ] Diagnostic Report exports HTML.
+- [ ] Diagnostic Report does not open ports or transmit.
 
 ## Safety Notes
 

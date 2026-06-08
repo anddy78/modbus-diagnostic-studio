@@ -14,6 +14,7 @@ def test_gui_imports() -> None:
         AdvancedMasterTab,
         ConnectionTab,
         DecoderTab,
+        DiagnosticReportTab,
         MasterReadTab,
         MetersTab,
         ProfileManagerTab,
@@ -28,6 +29,7 @@ def test_gui_imports() -> None:
     assert AdvancedMasterTab.__name__ == "AdvancedMasterTab"
     assert ConnectionTab.__name__ == "ConnectionTab"
     assert DecoderTab.__name__ == "DecoderTab"
+    assert DiagnosticReportTab.__name__ == "DiagnosticReportTab"
     assert MasterReadTab.__name__ == "MasterReadTab"
     assert MetersTab.__name__ == "MetersTab"
     assert ProfileManagerTab.__name__ == "ProfileManagerTab"
@@ -66,6 +68,7 @@ def test_main_window_theme_references_exist() -> None:
         "Raw Frame Decoder",
         "Basic Master",
         "Profile Manager",
+        "Diagnostic Report",
     ]
     assert "Profiles" not in tab_names
     assert "Profile Manager" in tab_names
@@ -78,6 +81,7 @@ def test_tab_intro_status_labels_match_current_ux_copy() -> None:
     from PySide6.QtWidgets import QApplication
     from modbus_diagnostic_studio.gui.tabs.advanced_master_tab import AdvancedMasterTab
     from modbus_diagnostic_studio.gui.tabs.decoder_tab import DecoderTab
+    from modbus_diagnostic_studio.gui.tabs.diagnostic_report_tab import DiagnosticReportTab
     from modbus_diagnostic_studio.gui.tabs.master_read_tab import MasterReadTab
     from modbus_diagnostic_studio.gui.tabs.meters_tab import MetersTab
     from modbus_diagnostic_studio.gui.tabs.profile_manager_tab import ProfileManagerTab
@@ -96,6 +100,9 @@ def test_tab_intro_status_labels_match_current_ux_copy() -> None:
     assert DecoderTab().status_label.text() == "Offline decoder for pasted RTU frames."
     assert ProfileManagerTab().status_label.text().startswith(
         "Manage device/register profile metadata."
+    )
+    assert DiagnosticReportTab().status_label.text().startswith(
+        "Diagnostic Report centralizes notes and evidence"
     )
 
 
@@ -204,6 +211,7 @@ def test_tab_constructors_accept_optional_app_state() -> None:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
     from modbus_diagnostic_studio.gui.tabs.advanced_master_tab import AdvancedMasterTab
+    from modbus_diagnostic_studio.gui.tabs.diagnostic_report_tab import DiagnosticReportTab
     from modbus_diagnostic_studio.gui.tabs.master_read_tab import MasterReadTab
     from modbus_diagnostic_studio.gui.tabs.meters_tab import MetersTab
     from modbus_diagnostic_studio.gui.tabs.slave_simulator_tab import SlaveSimulatorTab
@@ -211,7 +219,14 @@ def test_tab_constructors_accept_optional_app_state() -> None:
 
     app = QApplication.instance() or QApplication([])
 
-    for cls in (AdvancedMasterTab, MasterReadTab, MetersTab, SlaveSimulatorTab, SnifferDiagnosticTab):
+    for cls in (
+        AdvancedMasterTab,
+        DiagnosticReportTab,
+        MasterReadTab,
+        MetersTab,
+        SlaveSimulatorTab,
+        SnifferDiagnosticTab,
+    ):
         params = inspect.signature(cls.__init__).parameters
         assert "app_state" in params, f"{cls.__name__} missing app_state"
         assert params["app_state"].default is None

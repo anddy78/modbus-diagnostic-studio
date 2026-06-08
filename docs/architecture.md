@@ -27,10 +27,24 @@ Core principles:
 - `master/`: active Modbus master operations.
 - `slave/`: active simulator/slave operations.
 - `sniffer/`: passive RTU capture, frame reconstruction, request/response matching, diagnostics and capture output.
-- `services/`: application state, event bus, sessions and reports.
+- `services/`: application state, event bus, diagnostic sessions and report export helpers.
 - `gui/`: PySide6 user interface only. GUI must call services/core modules and must not implement protocol logic directly.
 
 The GUI should also provide a theme selector with System, Light and Dark modes.
+
+## Diagnostic Sessions And Reports
+
+The application should include a diagnostic-session layer above individual tools.
+
+Its purpose is to centralize evidence that would otherwise stay scattered across tabs:
+- site and equipment metadata
+- manual technician notes
+- read and write outcomes
+- errors, timeouts and CRC-related findings
+- sniffer summaries and preliminary conclusions
+- exported evidence in JSON, CSV and HTML
+
+This reporting layer must remain GUI- and service-level only. It must not change Modbus protocol behavior, must not open ports by itself, and must not transmit.
 
 ## Passive Sniffer Diagnostic
 
