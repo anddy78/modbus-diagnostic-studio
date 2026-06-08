@@ -8,6 +8,8 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow, QMenu, QMessageBox, QWidget
 
+from modbus_diagnostic_studio.version import APP_NAME, BUILD_CHANNEL, version
+
 
 def set_help(widget: QWidget, title: str, text: str) -> None:
     """Attach tooltip, What's This text, and a small context help menu."""
@@ -46,9 +48,7 @@ def attach_help_menu(window: QMainWindow) -> None:
         "about": (
             "About",
             "About Modbus Diagnostic Studio",
-            "Modbus Diagnostic Studio\n"
-            "Version 0.1.0-beta\n\n"
-            "Industrial Modbus diagnostic tool",
+            build_about_text(),
         ),
     }
 
@@ -61,6 +61,20 @@ def attach_help_menu(window: QMainWindow) -> None:
 
     window.help_menu = help_menu
     window.help_actions = help_actions
+
+
+def build_about_text() -> str:
+    """Return the current About dialog text."""
+    return (
+        f"{APP_NAME}\n"
+        f"Version: {version}\n"
+        f"Build channel: {BUILD_CHANNEL}\n\n"
+        "Portable Windows diagnostic tool\n\n"
+        "Safety notes:\n"
+        "- Passive Sniffer never transmits\n"
+        "- Capture Viewer never opens ports\n"
+        "- Writes require explicit unlock and confirmation"
+    )
 
 
 def _show_help_context_menu(

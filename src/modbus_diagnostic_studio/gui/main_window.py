@@ -21,6 +21,7 @@ from modbus_diagnostic_studio.gui.tabs.sniffer_diagnostic_tab import (
 )
 from modbus_diagnostic_studio.gui.theme import apply_theme, available_themes
 from modbus_diagnostic_studio.services.application_state import ApplicationState
+from modbus_diagnostic_studio.version import APP_NAME
 
 
 class MainWindow(QMainWindow):
@@ -28,7 +29,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Modbus Diagnostic Studio")
+        self.setWindowTitle(APP_NAME)
         self.resize(980, 680)
 
         self._current_theme = "system"

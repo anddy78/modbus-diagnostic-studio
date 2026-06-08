@@ -18,6 +18,7 @@ from modbus_diagnostic_studio.gui.tabs.sniffer_diagnostic_tab import (
     VISIBLE_FRAME_LIMIT,
     SnifferDiagnosticTab,
 )
+from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
 from modbus_diagnostic_studio.services.application_state import ApplicationState
 
 
@@ -92,6 +93,41 @@ def test_snapshot_write_updates_recorder_labels_without_threads(tmp_path: Path) 
     assert widget.recording_label.text() == "Yes"
     assert widget.records_written_label.text() == "3"
     assert "events.jsonl" in widget.capture_files_label.text()
+
+
+def test_close_recorder_keeps_last_files_and_total_until_clear(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    widget = SnifferDiagnosticTab(ApplicationState())
+
+    class FakeRecorder:
+        def __init__(self) -> None:
+            self.records_written = 7
+            self.events_path = tmp_path / "capture_events.jsonl"
+            self.exchanges_path = tmp_path / "capture_exchanges.jsonl"
+
+        def close(self) -> None:
+            return None
+
+    widget._recorder = FakeRecorder()
+    widget._sync_recorder_labels()
+    widget._close_recorder()
+
+    assert app is not None
+    assert widget.recording_label.text() == "No"
+    assert widget.records_written_label.text() == "7"
+    assert "capture_events.jsonl" in widget.capture_files_label.text()
+
+    widget.clear_view()
+
+    assert widget.records_written_label.text() == "0"
+    assert widget.capture_files_label.text() == "-"
+
+
+def test_recorder_metadata_uses_central_version() -> None:
+    widget = SnifferDiagnosticTab(ApplicationState())
+    metadata = widget._build_recorder_metadata(SerialConnectionSettings(port="COM9"))
+
+    assert metadata["app_version"] == "0.1.0-rc1"
 
 
 def test_visible_frame_limit_constant_is_100() -> None:

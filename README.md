@@ -2,6 +2,18 @@
 
 Self-contained Windows desktop application for industrial Modbus diagnostics.
 
+## 0.1.0-rc1 Highlights
+
+- guarded active master writes
+- passive sniffer
+- continuous capture recorder
+- capture viewer
+- diagnostic report
+- slave simulator scenarios
+- portable Windows ZIP
+
+`0.1.0-rc1` is a release candidate. Validate it in a controlled environment before using it in field-critical workflows.
+
 ## Product Direction
 
 Modbus Diagnostic Studio is evolving into a two-layer workbench:
@@ -101,11 +113,11 @@ The final application must run as:
 - `ModbusDiagnosticStudio.exe`
 - or as a portable Windows folder containing the executable, profiles, config, logs and captures
 
-## Quick Start Beta
+## Quick Start RC1
 
 ### From the portable ZIP
 
-1. Download and extract `ModbusDiagnosticStudio_0.1.0-beta_portable.zip`.
+1. Download and extract `ModbusDiagnosticStudio_0.1.0-rc1_portable.zip`.
 2. Open `dist\ModbusDiagnosticStudioPortable\`.
 3. Run `ModbusDiagnosticStudioPortable.exe`.
 
@@ -117,7 +129,7 @@ The final application must run as:
 
 ### Safe write testing workflow
 
-For Master Write testing in this beta, use the built-in Slave Simulator first. Do not write to real equipment unless you have explicit authorization.
+For Master Write testing in this RC1 build, use the built-in Slave Simulator first. Do not write to real equipment unless you have explicit authorization.
 
 ### Reusable slave scenarios
 
@@ -149,6 +161,7 @@ Scenario loading only restores controls and selected profiles. It does not open 
 - `Capture Viewer` opens those offline JSONL files, or the existing CSV exports, without opening ports or transmitting.
 - From `Capture Viewer` you can decode one selected frame, copy raw hex, add a decoded finding to an active `Diagnostic Report` session, or export an offline `AI Bundle` JSON.
 - `AI Bundle` export only writes a local file; review sensitive capture contents before sharing it externally.
+- The portable build script also writes a companion `.sha256` file next to the ZIP release.
 
 ### Where files go
 

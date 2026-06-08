@@ -1,6 +1,6 @@
 # Manual Test Checklist
 
-Use this checklist to validate the beta GUI on Windows.
+Use this checklist to validate the RC1 GUI on Windows.
 
 ## App Startup
 
@@ -19,6 +19,7 @@ Use this checklist to validate the beta GUI on Windows.
 - [ ] Meter Dashboard tab opens.
 - [ ] Main window does not show a separate `Profiles` tab.
 - [ ] Diagnostic Report tab opens.
+- [ ] About dialog shows `0.1.0-rc1`.
 - [ ] Theme selector works.
 
 ## Advanced Master
@@ -44,6 +45,8 @@ Use this checklist to validate the beta GUI on Windows.
 - [ ] Resume Display restores visual refresh without reopening the port.
 - [ ] Passive Sniffer exports captures to CSV and JSONL.
 - [ ] Stop closes the recorder and leaves capture files on disk.
+- [ ] Capture files stay visible after Stop.
+- [ ] Records written keeps the final total after Stop.
 
 ## Capture Viewer
 
@@ -93,6 +96,11 @@ Use this checklist to validate the beta GUI on Windows.
 - [ ] Diagnostic Report exports HTML.
 - [ ] Diagnostic Report does not open ports or transmit.
 
+## Release Artifacts
+
+- [ ] ZIP tested from a fresh extraction folder with timestamp in the path.
+- [ ] SHA256 file generated next to the portable ZIP.
+
 ## Safety Notes
 
-- [ ] Do not use real equipment for write operations in this beta unless you have explicit authorization.
+- [ ] Do not use real equipment for write operations in this RC1 build unless you have explicit authorization.

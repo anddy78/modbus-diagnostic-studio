@@ -56,6 +56,7 @@ from modbus_diagnostic_studio.sniffer.passive_serial_sniffer import (
 )
 from modbus_diagnostic_studio.sniffer.rtu_stream_framer import RtuFramerConfig
 from modbus_diagnostic_studio.transports.serial_ports import list_serial_ports
+from modbus_diagnostic_studio.version import version
 
 SNIFFER_OWNER = "sniffer_diagnostic_tab"
 VISIBLE_FRAME_LIMIT = 100
@@ -201,6 +202,9 @@ class SnifferDiagnosticTab(QWidget):
         self._app_state = app_state or ApplicationState()
         self._mode_manager = self._app_state.mode_manager
         self._recorder: ContinuousCaptureRecorder | None = None
+        self._last_capture_files_label = "-"
+        self._last_capture_paths: list[str] = []
+        self._last_records_written = 0
 
         self.banner_label = QLabel("PASSIVE SNIFFER - DOES NOT TRANSMIT")
         banner_font = self.banner_label.font()
@@ -643,6 +647,9 @@ class SnifferDiagnosticTab(QWidget):
         self.ui_updates_label.setText("0")
         self.serial_errors_label.setText("0")
         self.display_paused_label.setText("No")
+        self._last_capture_files_label = "-"
+        self._last_capture_paths = []
+        self._last_records_written = 0
         self.records_written_label.setText("0")
         self.recording_label.setText("No" if self._recorder is None else "Yes")
         self.capture_files_label.setText("-")
@@ -764,7 +771,7 @@ class SnifferDiagnosticTab(QWidget):
     def _build_recorder_metadata(self, settings: SerialConnectionSettings) -> dict[str, object]:
         profile_id = self.profile_combo.currentData()
         return {
-            "app_version": "0.1.0-beta",
+            "app_version": version,
             "port": settings.port,
             "baudrate": settings.baudrate,
             "parity": settings.parity,
@@ -786,17 +793,23 @@ class SnifferDiagnosticTab(QWidget):
     def _sync_recorder_labels(self) -> None:
         if self._recorder is None:
             self.recording_label.setText("No")
-            self.records_written_label.setText("0")
-            self.capture_files_label.setText("-")
+            self.records_written_label.setText(str(self._last_records_written))
+            self.capture_files_label.setText(self._last_capture_files_label)
             return
         self.recording_label.setText("Yes")
-        self.records_written_label.setText(str(self._recorder.records_written))
+        self._last_records_written = self._recorder.records_written
+        self.records_written_label.setText(str(self._last_records_written))
         files = []
+        paths = []
         if self._recorder.events_path is not None:
             files.append(self._recorder.events_path.name)
+            paths.append(str(self._recorder.events_path))
         if self._recorder.exchanges_path is not None:
             files.append(self._recorder.exchanges_path.name)
-        self.capture_files_label.setText(", ".join(files) or "-")
+            paths.append(str(self._recorder.exchanges_path))
+        self._last_capture_files_label = ", ".join(files) or "-"
+        self._last_capture_paths = paths
+        self.capture_files_label.setText(self._last_capture_files_label)
 
     def _close_recorder(self) -> None:
         if self._recorder is None:
@@ -809,14 +822,12 @@ class SnifferDiagnosticTab(QWidget):
             self._sync_recorder_labels()
 
     def _stopped_status(self) -> str:
+        if self._last_capture_paths:
+            return f"Stopped. Capture saved to: {' | '.join(self._last_capture_paths)}"
         if self._recorder is not None:
-            paths = []
-            if self._recorder.events_path is not None:
-                paths.append(str(self._recorder.events_path))
-            if self._recorder.exchanges_path is not None:
-                paths.append(str(self._recorder.exchanges_path))
-            if paths:
-                return f"Stopped. Capture saved to: {' | '.join(paths)}"
+            self._sync_recorder_labels()
+            if self._last_capture_paths:
+                return f"Stopped. Capture saved to: {' | '.join(self._last_capture_paths)}"
         return "Stopped. Passive sniffer closed."
 
     def _release_reserved_port(self) -> None:

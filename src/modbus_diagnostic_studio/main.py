@@ -4,9 +4,7 @@ import argparse
 import sys
 
 from modbus_diagnostic_studio.gui.app import run_app
-
-
-APP_NAME = "Modbus Diagnostic Studio"
+from modbus_diagnostic_studio.version import APP_NAME
 
 
 def build_parser() -> argparse.ArgumentParser:
