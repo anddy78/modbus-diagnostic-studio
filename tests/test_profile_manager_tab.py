@@ -24,6 +24,12 @@ def test_profile_manager_tab_builds_and_lists_builtins(monkeypatch, tmp_path: Pa
     assert app is not None
     assert widget.device_profiles_table.rowCount() >= 3
     assert widget.register_profiles_table.rowCount() >= 1
+    assert widget.device_profiles_table.minimumHeight() >= 150
+    assert widget.register_profiles_table.minimumHeight() >= 150
+    assert widget.roles_table.minimumHeight() >= 120
+    assert widget.register_preview_table.minimumHeight() >= 220
+    assert widget.device_profiles_table.horizontalHeaderItem(0).text() == "Device ID"
+    assert widget.roles_table.horizontalHeaderItem(4).text() == "Description"
     assert widget.register_profiles_table.horizontalHeaderItem(4).text() == "Description"
     assert widget.register_preview_table.horizontalHeaderItem(2).text() == "Function"
     assert widget.register_preview_table.horizontalHeaderItem(3).text() == "Bank"

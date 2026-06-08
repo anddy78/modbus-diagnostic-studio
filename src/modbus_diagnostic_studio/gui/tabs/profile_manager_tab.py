@@ -39,6 +39,11 @@ from modbus_diagnostic_studio.sniffer.communication_profiles import (
     list_builtin_communication_profiles,
 )
 
+_DEVICE_PROFILES_TABLE_MIN_HEIGHT = 170
+_ROLE_LINKS_TABLE_MIN_HEIGHT = 130
+_REGISTER_PROFILES_TABLE_MIN_HEIGHT = 170
+_REGISTER_PREVIEW_TABLE_MIN_HEIGHT = 260
+
 
 class ProfileManagerTab(QWidget):
     """Inspect role-oriented device profiles and existing register profiles."""
@@ -76,6 +81,7 @@ class ProfileManagerTab(QWidget):
         self.device_profiles_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.device_profiles_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.device_profiles_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.device_profiles_table.setMinimumHeight(_DEVICE_PROFILES_TABLE_MIN_HEIGHT)
         self.device_profiles_table.itemSelectionChanged.connect(self._update_device_profile_preview)
 
         self.roles_table = QTableWidget(0, 5)
@@ -85,6 +91,7 @@ class ProfileManagerTab(QWidget):
         self.roles_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.roles_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.roles_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.roles_table.setMinimumHeight(_ROLE_LINKS_TABLE_MIN_HEIGHT)
         self.roles_table.itemSelectionChanged.connect(self._handle_role_selection_changed)
 
         self.validation_output = QTextEdit()
@@ -98,6 +105,7 @@ class ProfileManagerTab(QWidget):
         self.register_profiles_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.register_profiles_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.register_profiles_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.register_profiles_table.setMinimumHeight(_REGISTER_PROFILES_TABLE_MIN_HEIGHT)
         self.register_profiles_table.itemSelectionChanged.connect(
             self._handle_register_profile_selection_changed
         )
@@ -113,7 +121,7 @@ class ProfileManagerTab(QWidget):
         self.register_preview_table.horizontalHeader().setStretchLastSection(True)
         self.register_preview_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.register_preview_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.register_preview_table.setMinimumHeight(260)
+        self.register_preview_table.setMinimumHeight(_REGISTER_PREVIEW_TABLE_MIN_HEIGHT)
 
         self._build_layout()
         self._attach_help()
@@ -132,19 +140,24 @@ class ProfileManagerTab(QWidget):
         content_layout.addLayout(button_row)
         content_layout.addWidget(QLabel("Device Profiles"))
         content_layout.addWidget(self.device_profiles_table)
+        content_layout.setStretch(content_layout.count() - 1, 3)
 
         preview_grid = QGridLayout()
         preview_grid.addWidget(QLabel("Role Links"), 0, 0)
         preview_grid.addWidget(self.roles_table, 1, 0)
         preview_grid.addWidget(QLabel("Validation"), 2, 0)
         preview_grid.addWidget(self.validation_output, 3, 0)
+        preview_grid.setRowStretch(1, 2)
+        preview_grid.setRowStretch(3, 1)
         content_layout.addLayout(preview_grid)
 
         content_layout.addWidget(QLabel("Register Profiles"))
         content_layout.addWidget(self.register_profiles_table)
+        content_layout.setStretch(content_layout.count() - 1, 3)
         content_layout.addWidget(QLabel("Register Preview"))
         content_layout.addWidget(self.register_preview_status_label)
         content_layout.addWidget(self.register_preview_table)
+        content_layout.setStretch(content_layout.count() - 1, 5)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
