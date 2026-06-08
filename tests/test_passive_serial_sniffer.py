@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from modbus_diagnostic_studio.core.crc import append_crc
@@ -43,6 +45,8 @@ def make_config() -> PassiveSerialSnifferConfig:
         framer=RtuFramerConfig(baudrate=9600),
         matcher_timeout_ms=200.0,
         read_size=256,
+        fingerprint_interval_seconds=1.0,
+        diagnosis_interval_seconds=1.0,
     )
 
 
@@ -58,6 +62,8 @@ def make_small_config(
         read_size=256,
         max_events=max_events,
         max_exchanges=max_exchanges,
+        fingerprint_interval_seconds=1.0,
+        diagnosis_interval_seconds=1.0,
     )
 
 
@@ -176,7 +182,8 @@ def test_fingerprint_scores_include_smartlogger_chint_dtsu71() -> None:
 
     sniffer.poll_once(1.0)
     sniffer.poll_once(1.01)
-    result = sniffer.poll_once(1.02)
+    sniffer.poll_once(1.02)
+    result = sniffer.snapshot(force_recompute=True, timestamp_monotonic=2.5)
 
     assert result.fingerprint_scores
     assert result.fingerprint_scores[0].profile_id == "smartlogger_chint_dtsu71"
@@ -250,3 +257,82 @@ def test_snapshot_limits_exchanges_to_max_exchanges() -> None:
 
     assert len(result.exchanges) == 1
     assert result.exchanges[0].request.address == 2158
+
+
+def test_snapshot_caches_fingerprint_until_interval() -> None:
+    fake_serial = FakeSerial([dtsu71_fast_request(), dtsu71_slow_request(), b""])
+    sniffer = PassiveSerialSniffer(
+        make_config(),
+        serial_factory=lambda settings: fake_serial,
+    )
+    sniffer.open()
+    sniffer.poll_once(1.0)
+    sniffer.poll_once(1.01)
+    sniffer.poll_once(1.02)
+
+    with patch(
+        "modbus_diagnostic_studio.sniffer.passive_serial_sniffer.rank_communication_profiles",
+        wraps=__import__(
+            "modbus_diagnostic_studio.sniffer.passive_serial_sniffer",
+            fromlist=["rank_communication_profiles"],
+        ).rank_communication_profiles,
+    ) as rank_mock:
+        first = sniffer.snapshot(timestamp_monotonic=2.0)
+        second = sniffer.snapshot(timestamp_monotonic=2.5)
+
+    assert first.fingerprint_scores
+    assert second.fingerprint_scores
+    assert rank_mock.call_count == 1
+
+
+def test_snapshot_force_recompute_recalculates_fingerprint() -> None:
+    fake_serial = FakeSerial([dtsu71_fast_request(), dtsu71_slow_request(), b""])
+    sniffer = PassiveSerialSniffer(
+        make_config(),
+        serial_factory=lambda settings: fake_serial,
+    )
+    sniffer.open()
+    sniffer.poll_once(1.0)
+    sniffer.poll_once(1.01)
+    sniffer.poll_once(1.02)
+
+    with patch(
+        "modbus_diagnostic_studio.sniffer.passive_serial_sniffer.rank_communication_profiles",
+        wraps=__import__(
+            "modbus_diagnostic_studio.sniffer.passive_serial_sniffer",
+            fromlist=["rank_communication_profiles"],
+        ).rank_communication_profiles,
+    ) as rank_mock:
+        sniffer.snapshot(timestamp_monotonic=2.0)
+        sniffer.snapshot(force_recompute=True, timestamp_monotonic=2.1)
+
+    assert rank_mock.call_count == 2
+
+
+def test_snapshot_caches_diagnosis_until_interval_without_changing_stats() -> None:
+    fake_serial = FakeSerial([invalid_frame := dtsu71_fast_request()[:-1] + b"\x00", b""])
+    sniffer = PassiveSerialSniffer(
+        make_config(),
+        serial_factory=lambda settings: fake_serial,
+    )
+    sniffer.open()
+    sniffer.poll_once(1.0)
+    base = sniffer.poll_once(1.01)
+
+    with patch(
+        "modbus_diagnostic_studio.sniffer.passive_serial_sniffer.build_preliminary_diagnosis",
+        wraps=__import__(
+            "modbus_diagnostic_studio.sniffer.passive_serial_sniffer",
+            fromlist=["build_preliminary_diagnosis"],
+        ).build_preliminary_diagnosis,
+    ) as diagnosis_mock:
+        first = sniffer.snapshot(timestamp_monotonic=2.0)
+        second = sniffer.snapshot(timestamp_monotonic=2.5)
+        third = sniffer.snapshot(timestamp_monotonic=3.1)
+
+    assert base.stats.invalid_crc_frames == 1
+    assert first.stats.invalid_crc_frames == 1
+    assert second.stats.invalid_crc_frames == 1
+    assert third.stats.invalid_crc_frames == 1
+    assert len(first.events) == len(second.events) == len(third.events) == 1
+    assert diagnosis_mock.call_count == 2

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -26,7 +28,7 @@ from modbus_diagnostic_studio.gui.help import set_help
 from modbus_diagnostic_studio.models.communication_profile import CommunicationProfile
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
 from modbus_diagnostic_studio.services.application_state import ApplicationState
-from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
+from modbus_diagnostic_studio.services.mode_manager import AppMode
 from modbus_diagnostic_studio.sniffer.capture_writer import (
     write_events_csv,
     write_events_jsonl,
@@ -47,6 +49,7 @@ from modbus_diagnostic_studio.sniffer.rtu_stream_framer import RtuFramerConfig
 from modbus_diagnostic_studio.transports.serial_ports import list_serial_ports
 
 SNIFFER_OWNER = "sniffer_diagnostic_tab"
+VISIBLE_FRAME_LIMIT = 100
 
 
 @dataclass(frozen=True)
@@ -55,12 +58,24 @@ class SnifferStartRequest:
 
     settings: SerialConnectionSettings
     communication_profiles: list[CommunicationProfile]
+    poll_interval_ms: int = 100
+    ui_update_interval_ms: int = 500
+    fingerprint_interval_seconds: float = 1.0
+
+
+@dataclass(frozen=True)
+class SnifferWorkerMetrics:
+    """Worker-side performance counters for passive sniffing."""
+
+    polls_count: int
+    snapshots_emitted: int
+    serial_errors_count: int
 
 
 class SnifferWorker(QObject):
     """Background worker that polls a passive serial sniffer."""
 
-    snapshot_ready = Signal(object)
+    snapshot_ready = Signal(object, object)
     failed = Signal(str)
     stopped = Signal()
 
@@ -69,6 +84,10 @@ class SnifferWorker(QObject):
         self.request = request
         self._timer: QTimer | None = None
         self._sniffer: PassiveSerialSniffer | None = None
+        self.polls_count = 0
+        self.snapshots_emitted = 0
+        self.serial_errors_count = 0
+        self.last_publish_monotonic = 0.0
 
     @Slot()
     def start(self) -> None:
@@ -80,6 +99,8 @@ class SnifferWorker(QObject):
                     framer=RtuFramerConfig(baudrate=self.request.settings.baudrate),
                     matcher_timeout_ms=max(self.request.settings.timeout * 1000.0, 100.0),
                     read_size=256,
+                    fingerprint_interval_seconds=self.request.fingerprint_interval_seconds,
+                    diagnosis_interval_seconds=self.request.fingerprint_interval_seconds,
                 ),
                 communication_profiles=self.request.communication_profiles,
             )
@@ -89,24 +110,35 @@ class SnifferWorker(QObject):
             self.stopped.emit()
             return
 
+        self.last_publish_monotonic = time.monotonic()
         self._timer = QTimer(self)
-        self._timer.setInterval(100)
+        self._timer.setInterval(self.request.poll_interval_ms)
         self._timer.timeout.connect(self.poll_once)
         self._timer.start()
 
     @Slot()
     def poll_once(self) -> None:
-        """Poll one passive serial chunk and publish the snapshot."""
+        """Poll one passive serial chunk and publish only on the configured cadence."""
         if self._sniffer is None:
             return
+        self.polls_count += 1
+        now = time.monotonic()
         try:
-            snapshot = self._sniffer.poll_once()
+            self._sniffer.poll_once(timestamp_monotonic=now)
         except Exception as exc:
+            self.serial_errors_count += 1
+            self._emit_snapshot_if_available(force_recompute=True)
             self._close_sniffer()
             self.failed.emit(str(exc))
             self.stopped.emit()
             return
-        self.snapshot_ready.emit(snapshot)
+
+        if (
+            self.snapshots_emitted == 0
+            or (now - self.last_publish_monotonic) * 1000.0 >= self.request.ui_update_interval_ms
+        ):
+            self._emit_snapshot_if_available(force_recompute=False)
+            self.last_publish_monotonic = now
 
     @Slot()
     def stop(self) -> None:
@@ -115,8 +147,23 @@ class SnifferWorker(QObject):
             self._timer.stop()
             self._timer.deleteLater()
             self._timer = None
+        self._emit_snapshot_if_available(force_recompute=True)
         self._close_sniffer()
         self.stopped.emit()
+
+    def _emit_snapshot_if_available(self, *, force_recompute: bool) -> None:
+        if self._sniffer is None:
+            return
+        snapshot = self._sniffer.snapshot(force_recompute=force_recompute)
+        self.snapshots_emitted += 1
+        self.snapshot_ready.emit(snapshot, self._metrics())
+
+    def _metrics(self) -> SnifferWorkerMetrics:
+        return SnifferWorkerMetrics(
+            polls_count=self.polls_count,
+            snapshots_emitted=self.snapshots_emitted,
+            serial_errors_count=self.serial_errors_count,
+        )
 
     def _close_sniffer(self) -> None:
         if self._sniffer is None:
@@ -138,8 +185,10 @@ class SnifferDiagnosticTab(QWidget):
         self._thread: QThread | None = None
         self._worker: SnifferWorker | None = None
         self._running = False
+        self._display_paused = False
         self._reserved_port: str | None = None
         self._last_snapshot: PassiveSnifferSnapshot | None = None
+        self._last_metrics = SnifferWorkerMetrics(0, 0, 0)
         self._app_state = app_state or ApplicationState()
         self._mode_manager = self._app_state.mode_manager
 
@@ -149,7 +198,7 @@ class SnifferDiagnosticTab(QWidget):
         banner_font.setBold(True)
         self.banner_label.setFont(banner_font)
 
-        self.status_label = QLabel("Stopped. Passive mode reads only and never transmits.")
+        self.status_label = QLabel("Stopped. Passive sniffer closed.")
 
         self.port_combo = QComboBox()
         self.refresh_button = QPushButton("Refresh Ports")
@@ -170,6 +219,22 @@ class SnifferDiagnosticTab(QWidget):
         self.timeout.setSingleStep(0.05)
         self.timeout.setValue(0.1)
 
+        self.poll_interval_spin = QSpinBox()
+        self.poll_interval_spin.setRange(20, 1000)
+        self.poll_interval_spin.setValue(100)
+        self.poll_interval_spin.setSuffix(" ms")
+
+        self.ui_update_interval_spin = QSpinBox()
+        self.ui_update_interval_spin.setRange(100, 5000)
+        self.ui_update_interval_spin.setValue(500)
+        self.ui_update_interval_spin.setSuffix(" ms")
+
+        self.fingerprint_interval_spin = QDoubleSpinBox()
+        self.fingerprint_interval_spin.setRange(0.5, 10.0)
+        self.fingerprint_interval_spin.setSingleStep(0.5)
+        self.fingerprint_interval_spin.setValue(1.0)
+        self.fingerprint_interval_spin.setSuffix(" s")
+
         self.profile_combo = QComboBox()
         self.profile_combo.addItem("Auto / All built-ins", "__all__")
         for profile_id in list_builtin_communication_profiles():
@@ -182,6 +247,15 @@ class SnifferDiagnosticTab(QWidget):
         self.stop_button.setEnabled(False)
         self.clear_button = QPushButton("Clear")
         self.clear_button.clicked.connect(self.clear_view)
+        self.pause_display_button = QPushButton("Pause Display")
+        self.pause_display_button.clicked.connect(self.pause_display)
+        self.pause_display_button.setEnabled(False)
+        self.resume_display_button = QPushButton("Resume Display")
+        self.resume_display_button.clicked.connect(self.resume_display)
+        self.resume_display_button.setEnabled(False)
+        self.refresh_snapshot_button = QPushButton("Refresh Snapshot Now")
+        self.refresh_snapshot_button.clicked.connect(self.refresh_snapshot_now)
+        self.refresh_snapshot_button.setEnabled(False)
 
         self.export_events_csv_button = QPushButton("Export Events CSV")
         self.export_events_csv_button.clicked.connect(self.export_events_csv)
@@ -205,6 +279,10 @@ class SnifferDiagnosticTab(QWidget):
         self.latency_min_label = QLabel("-")
         self.latency_max_label = QLabel("-")
         self.latency_avg_label = QLabel("-")
+        self.polls_label = QLabel("0")
+        self.ui_updates_label = QLabel("0")
+        self.display_paused_label = QLabel("No")
+        self.serial_errors_label = QLabel("0")
 
         self.frames_table = QTableWidget(0, 8)
         self.frames_table.setHorizontalHeaderLabels(
@@ -247,12 +325,18 @@ class SnifferDiagnosticTab(QWidget):
         form.addRow("Parity", self.parity)
         form.addRow("Stopbits", self.stopbits)
         form.addRow("Timeout seconds", self.timeout)
+        form.addRow("Poll interval", self.poll_interval_spin)
+        form.addRow("UI update interval", self.ui_update_interval_spin)
+        form.addRow("Fingerprint interval", self.fingerprint_interval_spin)
         form.addRow("Communication profile", self.profile_combo)
 
         button_row = QHBoxLayout()
         button_row.addWidget(self.start_button)
         button_row.addWidget(self.stop_button)
         button_row.addWidget(self.clear_button)
+        button_row.addWidget(self.pause_display_button)
+        button_row.addWidget(self.resume_display_button)
+        button_row.addWidget(self.refresh_snapshot_button)
 
         export_row = QHBoxLayout()
         export_row.addWidget(self.export_events_csv_button)
@@ -287,6 +371,14 @@ class SnifferDiagnosticTab(QWidget):
         stats.addWidget(self.latency_max_label, 3, 5)
         stats.addWidget(QLabel("Latency avg"), 4, 0)
         stats.addWidget(self.latency_avg_label, 4, 1)
+        stats.addWidget(QLabel("Polls"), 4, 2)
+        stats.addWidget(self.polls_label, 4, 3)
+        stats.addWidget(QLabel("UI updates"), 4, 4)
+        stats.addWidget(self.ui_updates_label, 4, 5)
+        stats.addWidget(QLabel("Display paused"), 5, 0)
+        stats.addWidget(self.display_paused_label, 5, 1)
+        stats.addWidget(QLabel("Serial errors"), 5, 2)
+        stats.addWidget(self.serial_errors_label, 5, 3)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
@@ -326,6 +418,26 @@ class SnifferDiagnosticTab(QWidget):
             self.start_button,
             "Start Passive Sniffer",
             "Reserve the selected COM port in passive mode and begin read-only capture.",
+        )
+        set_help(
+            self.poll_interval_spin,
+            "Poll interval",
+            "How often the passive worker polls the serial adapter for new bytes.",
+        )
+        set_help(
+            self.ui_update_interval_spin,
+            "UI update interval",
+            "How often the worker publishes snapshots to the GUI while capture continues.",
+        )
+        set_help(
+            self.fingerprint_interval_spin,
+            "Fingerprint interval",
+            "Minimum interval between fingerprint and diagnosis recomputation inside the sniffer snapshot cache.",
+        )
+        set_help(
+            self.pause_display_button,
+            "Pause Display",
+            "Pause GUI table and diagnosis refresh while passive capture continues in the background.",
         )
 
     def refresh_ports(self) -> None:
@@ -375,12 +487,19 @@ class SnifferDiagnosticTab(QWidget):
             return
 
         self.clear_view()
-        self.status_label.setText("Starting passive sniffer...")
+        self._display_paused = False
+        self._update_display_paused_label()
         self._set_running_state(True)
+        self.status_label.setText(
+            f"Starting passive sniffer... Read-only mode. UI updates every {self.ui_update_interval_spin.value()} ms."
+        )
 
         request = SnifferStartRequest(
             settings=settings,
             communication_profiles=self._selected_profiles(),
+            poll_interval_ms=self.poll_interval_spin.value(),
+            ui_update_interval_ms=self.ui_update_interval_spin.value(),
+            fingerprint_interval_seconds=self.fingerprint_interval_spin.value(),
         )
 
         self._thread = QThread(self)
@@ -398,13 +517,49 @@ class SnifferDiagnosticTab(QWidget):
     def stop_sniffer(self) -> None:
         """Stop passive capture and release the port."""
         if self._worker is None:
-            self._finish_stop("Stopped.")
+            self._finish_stop("Stopped. Passive sniffer closed.")
             return
         self.status_label.setText("Stopping passive sniffer...")
         self.stop_requested.emit()
 
+    def pause_display(self) -> None:
+        """Pause visual updates while capture continues."""
+        if not self._running:
+            return
+        self._display_paused = True
+        self._update_display_paused_label()
+        self.status_label.setText(
+            "Display paused; capture still running. Export uses latest captured snapshot."
+        )
+
+    def resume_display(self) -> None:
+        """Resume visual updates using the latest captured snapshot."""
+        if not self._running:
+            return
+        self._display_paused = False
+        self._update_display_paused_label()
+        if self._last_snapshot is not None:
+            self._apply_snapshot_to_view(self._last_snapshot)
+        self.status_label.setText(
+            f"Passive sniffer running. Capture active. UI updates every {self.ui_update_interval_spin.value()} ms."
+        )
+
+    def refresh_snapshot_now(self) -> None:
+        """Apply the latest cached snapshot to the visible view immediately."""
+        if self._last_snapshot is None:
+            return
+        self._populate_stats(self._last_snapshot)
+        self._populate_frames(self._last_snapshot)
+        self._populate_diagnosis(self._last_snapshot)
+        self._populate_fingerprint(self._last_snapshot)
+        self.status_label.setText(
+            f"Passive sniffer running. Capture active. UI updates every {self.ui_update_interval_spin.value()} ms."
+        )
+
     def clear_view(self) -> None:
         """Clear visible diagnostic data without starting any serial action."""
+        self._last_snapshot = None
+        self._last_metrics = SnifferWorkerMetrics(0, 0, 0)
         self.frames_table.setRowCount(0)
         self.diagnosis_text.clear()
         self.fingerprint_table.setRowCount(0)
@@ -421,15 +576,29 @@ class SnifferDiagnosticTab(QWidget):
         self.latency_min_label.setText("-")
         self.latency_max_label.setText("-")
         self.latency_avg_label.setText("-")
+        self.polls_label.setText("0")
+        self.ui_updates_label.setText("0")
+        self.serial_errors_label.setText("0")
+        self.display_paused_label.setText("No")
 
-    @Slot(object)
-    def _handle_snapshot(self, snapshot: PassiveSnifferSnapshot) -> None:
+    @Slot(object, object)
+    def _handle_snapshot(
+        self,
+        snapshot: PassiveSnifferSnapshot,
+        metrics: SnifferWorkerMetrics,
+    ) -> None:
         self._last_snapshot = snapshot
-        self.status_label.setText("Passive sniffer running. Read-only serial capture.")
-        self._populate_stats(snapshot)
-        self._populate_frames(snapshot)
-        self._populate_diagnosis(snapshot)
-        self._populate_fingerprint(snapshot)
+        self._last_metrics = metrics
+        self._update_metrics(metrics)
+        if self._display_paused:
+            self.status_label.setText(
+                "Display paused; capture still running. Export uses latest captured snapshot."
+            )
+            return
+        self._apply_snapshot_to_view(snapshot)
+        self.status_label.setText(
+            f"Passive sniffer running. Capture active. UI updates every {self.ui_update_interval_spin.value()} ms."
+        )
 
     @Slot(str)
     def _handle_error(self, message: str) -> None:
@@ -437,6 +606,8 @@ class SnifferDiagnosticTab(QWidget):
 
     @Slot()
     def _handle_worker_stopped(self) -> None:
+        if self._last_snapshot is not None and not self._display_paused:
+            self._apply_snapshot_to_view(self._last_snapshot)
         self._finish_stop("Stopped. Passive sniffer closed.")
 
     @Slot()
@@ -450,6 +621,8 @@ class SnifferDiagnosticTab(QWidget):
 
     def _finish_stop(self, status: str) -> None:
         self._set_running_state(False)
+        self._display_paused = False
+        self._update_display_paused_label()
         self._release_reserved_port()
         self.status_label.setText(status)
 
@@ -457,6 +630,20 @@ class SnifferDiagnosticTab(QWidget):
         self._running = running
         self.start_button.setEnabled(not running)
         self.stop_button.setEnabled(running)
+        self.pause_display_button.setEnabled(running and not self._display_paused)
+        self.resume_display_button.setEnabled(running and self._display_paused)
+        self.refresh_snapshot_button.setEnabled(running)
+
+    def _update_display_paused_label(self) -> None:
+        self.display_paused_label.setText("Yes" if self._display_paused else "No")
+        self.pause_display_button.setEnabled(self._running and not self._display_paused)
+        self.resume_display_button.setEnabled(self._running and self._display_paused)
+
+    def _update_metrics(self, metrics: SnifferWorkerMetrics) -> None:
+        self.polls_label.setText(str(metrics.polls_count))
+        self.ui_updates_label.setText(str(metrics.snapshots_emitted))
+        self.serial_errors_label.setText(str(metrics.serial_errors_count))
+        self._update_display_paused_label()
 
     def _set_error(self, message: str) -> None:
         self.status_label.setText(f"Error: {message}")
@@ -473,7 +660,11 @@ class SnifferDiagnosticTab(QWidget):
             return load_all_builtin_communication_profiles()
         return [load_builtin_communication_profile(str(profile_id))]
 
-    # ── export ────────────────────────────────────────────────────────────
+    def _apply_snapshot_to_view(self, snapshot: PassiveSnifferSnapshot) -> None:
+        self._populate_stats(snapshot)
+        self._populate_frames(snapshot)
+        self._populate_diagnosis(snapshot)
+        self._populate_fingerprint(snapshot)
 
     def export_events_csv(self) -> None:
         """Export captured frame events to a CSV file."""
@@ -564,7 +755,7 @@ class SnifferDiagnosticTab(QWidget):
         self.latency_avg_label.setText(self._format_latency(stats.avg_latency_ms))
 
     def _populate_frames(self, snapshot: PassiveSnifferSnapshot) -> None:
-        events = snapshot.events[-100:]
+        events = snapshot.events[-VISIBLE_FRAME_LIMIT:]
         self.frames_table.setRowCount(len(events))
         for row, event in enumerate(events):
             self.frames_table.setItem(

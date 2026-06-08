@@ -50,6 +50,8 @@ class PassiveSerialSnifferConfig:
     read_size: int = 256
     max_events: int = 1000
     max_exchanges: int = 1000
+    fingerprint_interval_seconds: float = 1.0
+    diagnosis_interval_seconds: float = 1.0
 
     def __post_init__(self) -> None:
         if self.matcher_timeout_ms <= 0:
@@ -60,6 +62,10 @@ class PassiveSerialSnifferConfig:
             raise ValueError("Max events must be > 0")
         if self.max_exchanges <= 0:
             raise ValueError("Max exchanges must be > 0")
+        if self.fingerprint_interval_seconds <= 0:
+            raise ValueError("Fingerprint interval must be > 0")
+        if self.diagnosis_interval_seconds <= 0:
+            raise ValueError("Diagnosis interval must be > 0")
 
 
 class PassiveSerialSniffer:
@@ -84,6 +90,10 @@ class PassiveSerialSniffer:
         self._stats = SnifferStatsCollector()
         self._events: deque[CaptureFrameEvent] = deque(maxlen=config.max_events)
         self._exchanges: deque[MatchedExchange] = deque(maxlen=config.max_exchanges)
+        self._last_fingerprint_at: float | None = None
+        self._last_diagnosis_at: float | None = None
+        self._cached_fingerprint_scores: list[FingerprintScore] = []
+        self._cached_diagnosis: list[str] = []
 
     @property
     def is_open(self) -> bool:
@@ -155,17 +165,26 @@ class PassiveSerialSniffer:
             self._exchanges.append(exchange)
             self._stats.add_exchange(exchange)
 
-        return self.snapshot()
+        return self.snapshot(timestamp_monotonic=now)
 
-    def snapshot(self) -> PassiveSnifferSnapshot:
+    def snapshot(
+        self,
+        force_recompute: bool = False,
+        timestamp_monotonic: float | None = None,
+    ) -> PassiveSnifferSnapshot:
         """Return the current accumulated sniffer view."""
+        now = time.monotonic() if timestamp_monotonic is None else timestamp_monotonic
         stats = self._stats.snapshot()
         event_list = list(self._events)
-        diagnosis = build_preliminary_diagnosis(stats)
-        fingerprint_scores = (
-            rank_communication_profiles(self._communication_profiles, event_list)
-            if self._communication_profiles
-            else []
+        diagnosis = self._get_diagnosis(
+            stats,
+            now=now,
+            force_recompute=force_recompute,
+        )
+        fingerprint_scores = self._get_fingerprint_scores(
+            event_list,
+            now=now,
+            force_recompute=force_recompute,
         )
         return PassiveSnifferSnapshot(
             events=event_list,
@@ -174,6 +193,45 @@ class PassiveSerialSniffer:
             diagnosis=diagnosis,
             fingerprint_scores=fingerprint_scores,
         )
+
+    def _get_diagnosis(
+        self,
+        stats: SnifferStats,
+        *,
+        now: float,
+        force_recompute: bool,
+    ) -> list[str]:
+        should_recompute = (
+            force_recompute
+            or self._last_diagnosis_at is None
+            or (now - self._last_diagnosis_at) >= self.config.diagnosis_interval_seconds
+        )
+        if should_recompute:
+            self._cached_diagnosis = build_preliminary_diagnosis(stats)
+            self._last_diagnosis_at = now
+        return list(self._cached_diagnosis)
+
+    def _get_fingerprint_scores(
+        self,
+        event_list: list[CaptureFrameEvent],
+        *,
+        now: float,
+        force_recompute: bool,
+    ) -> list[FingerprintScore]:
+        if not self._communication_profiles:
+            return []
+        should_recompute = (
+            force_recompute
+            or self._last_fingerprint_at is None
+            or (now - self._last_fingerprint_at) >= self.config.fingerprint_interval_seconds
+        )
+        if should_recompute:
+            self._cached_fingerprint_scores = rank_communication_profiles(
+                self._communication_profiles,
+                event_list,
+            )
+            self._last_fingerprint_at = now
+        return list(self._cached_fingerprint_scores)
 
     def _read_chunk(self) -> bytes:
         try:
