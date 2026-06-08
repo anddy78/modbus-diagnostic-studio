@@ -65,3 +65,13 @@ Writable runtime folders:
 - `device_profiles\user\`
 
 The `Profile Manager` tab loads built-in device profiles, lists bundled register profiles, validates selected entries, and imports YAML files into `device_profiles\user\`.
+
+The `Profile Manager` register preview now shows known register details including function, bank, quantity, scale, and description.
+
+The `Slave Simulator`, `Master Read`, and `Advanced Master` tabs can also use built-in profiles as guidance:
+- they list known registers from the selected profile
+- selecting a known register prefills address, function, quantity, and decode-related fields where applicable
+- selecting a known register does not automatically read, write, or start communication
+
+The `Slave Simulator` can also use a selected register profile to generate reasonable demo meter values in its local `SlaveDatastore`.
+This generation is local to the simulator, can use optional smooth random variation, and does not transmit Modbus requests to external equipment.

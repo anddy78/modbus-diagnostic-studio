@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import random
+
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
     QComboBox,
@@ -20,11 +22,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modbus_diagnostic_studio.device_profiles.loader import load_all_device_profiles
 from modbus_diagnostic_studio.gui.help import set_help
+from modbus_diagnostic_studio.gui.profile_views import (
+    populate_register_preview_table,
+    selected_register_from_table,
+)
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
+from modbus_diagnostic_studio.profiles.loader import list_builtin_profiles, load_builtin_profile
 from modbus_diagnostic_studio.services.application_state import ApplicationState
 from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
+from modbus_diagnostic_studio.services.paths import ensure_runtime_dirs, user_device_profiles_dir
 from modbus_diagnostic_studio.slave.datastore import SlaveDatastore
+from modbus_diagnostic_studio.slave.demo_values import build_demo_register_values
 from modbus_diagnostic_studio.slave.rtu_server import RtuSlaveServer, RtuSlaveServerConfig, RtuSlaveServerStats
 from modbus_diagnostic_studio.slave.simulator_engine import ModbusSlaveSimulator
 from modbus_diagnostic_studio.transports.serial_ports import list_serial_ports
@@ -111,6 +121,10 @@ class SlaveSimulatorTab(QWidget):
         self._app_state = app_state or ApplicationState()
         self._mode_manager = self._app_state.mode_manager
         self._datastore = SlaveDatastore()
+        self._device_profiles: list[object] = []
+        self._register_profiles: dict[str, object] = {}
+        self._demo_timer: QTimer | None = None
+        self._demo_rng = random.Random()
 
         # ── active mode banner ────────────────────────────────────────────
         self.banner_label = QLabel("ACTIVE SLAVE SIMULATOR — RESPONDS TO MASTER REQUESTS")
@@ -144,6 +158,35 @@ class SlaveSimulatorTab(QWidget):
         self.slave_id_spin = QSpinBox()
         self.slave_id_spin.setRange(1, 247)
         self.slave_id_spin.setValue(1)
+
+        self.device_profile_combo = QComboBox()
+        self.device_profile_combo.addItem("None / Generic raw datastore", None)
+        self.device_profile_combo.currentIndexChanged.connect(self._on_device_profile_changed)
+
+        self.register_profile_combo = QComboBox()
+        self.register_profile_combo.addItem("None / Raw datastore", None)
+        self.register_profile_combo.currentIndexChanged.connect(self._on_register_profile_changed)
+
+        self.load_profile_registers_button = QPushButton("Load Profile Registers")
+        self.load_profile_registers_button.clicked.connect(self._load_selected_known_registers)
+
+        self.generate_demo_values_button = QPushButton("Generate Demo Meter Values")
+        self.generate_demo_values_button.clicked.connect(self.generate_demo_meter_values)
+        self.random_variation_combo = QComboBox()
+        self.random_variation_combo.addItem("Off", False)
+        self.random_variation_combo.addItem("On", True)
+        self.variation_percent_spin = QSpinBox()
+        self.variation_percent_spin.setRange(0, 20)
+        self.variation_percent_spin.setValue(2)
+        self.auto_refresh_demo_combo = QComboBox()
+        self.auto_refresh_demo_combo.addItem("Off", False)
+        self.auto_refresh_demo_combo.addItem("On", True)
+        self.auto_refresh_demo_combo.currentIndexChanged.connect(self._update_demo_timer_state)
+        self.demo_update_interval_spin = QSpinBox()
+        self.demo_update_interval_spin.setRange(1, 60)
+        self.demo_update_interval_spin.setValue(2)
+        self.demo_update_interval_spin.setSuffix(" s")
+        self.demo_update_interval_spin.valueChanged.connect(self._update_demo_timer_interval)
 
         # ── action buttons ────────────────────────────────────────────────
         self.start_button = QPushButton("Start Slave Simulator")
@@ -202,9 +245,21 @@ class SlaveSimulatorTab(QWidget):
         self.register_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.register_table.setMinimumHeight(260)
 
+        self.known_registers_table = QTableWidget(0, 9)
+        self.known_registers_table.setHorizontalHeaderLabels(
+            ["Variable", "Address", "Function", "Bank", "Type", "Quantity", "Unit", "Scale", "Description"]
+        )
+        self.known_registers_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.known_registers_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.known_registers_table.setMinimumHeight(220)
+        self.known_registers_table.itemSelectionChanged.connect(
+            self._apply_selected_known_register
+        )
+
         self._build_layout()
         self._attach_help()
         self.refresh_ports()
+        self._reload_profile_selectors()
 
     def _build_layout(self) -> None:
         form = QFormLayout()
@@ -217,11 +272,14 @@ class SlaveSimulatorTab(QWidget):
         form.addRow("Stopbits", self.stopbits)
         form.addRow("Timeout (s)", self.timeout)
         form.addRow("Slave ID", self.slave_id_spin)
+        form.addRow("Device profile", self.device_profile_combo)
+        form.addRow("Register profile", self.register_profile_combo)
 
         btn_row = QHBoxLayout()
         btn_row.addWidget(self.start_button)
         btn_row.addWidget(self.stop_button)
         btn_row.addWidget(self.clear_button)
+        btn_row.addWidget(self.load_profile_registers_button)
 
         stats = QGridLayout()
         stats.addWidget(QLabel("Requests seen"), 0, 0)
@@ -255,6 +313,13 @@ class SlaveSimulatorTab(QWidget):
         range_row.addWidget(self.write_range_button)
         editor_form.addRow("Range write", range_row)
 
+        demo_form = QFormLayout()
+        demo_form.addRow(self.generate_demo_values_button)
+        demo_form.addRow("Random variation", self.random_variation_combo)
+        demo_form.addRow("Variation %", self.variation_percent_spin)
+        demo_form.addRow("Auto refresh demo values", self.auto_refresh_demo_combo)
+        demo_form.addRow("Update interval", self.demo_update_interval_spin)
+
         view_row = QHBoxLayout()
         view_row.addWidget(QLabel("Offset"))
         view_row.addWidget(self.view_offset)
@@ -271,6 +336,10 @@ class SlaveSimulatorTab(QWidget):
         content_layout.addLayout(stats)
         content_layout.addWidget(QLabel("Datastore editor"))
         content_layout.addLayout(editor_form)
+        content_layout.addWidget(QLabel("Demo meter values"))
+        content_layout.addLayout(demo_form)
+        content_layout.addWidget(QLabel("Known registers for simulated slave"))
+        content_layout.addWidget(self.known_registers_table)
         content_layout.addWidget(QLabel("Register view"))
         content_layout.addLayout(view_row)
         content_layout.addWidget(self.register_table)
@@ -298,6 +367,16 @@ class SlaveSimulatorTab(QWidget):
             self.register_table,
             "Datastore editor",
             "This table shows the simulated datastore values for the selected bank and range.",
+        )
+        set_help(
+            self.known_registers_table,
+            "Known registers",
+            "Profile-guided known registers for the simulated slave. Selecting one updates the editor fields but does not write values.",
+        )
+        set_help(
+            self.generate_demo_values_button,
+            "Generate Demo Meter Values",
+            "Populate the local slave datastore with reasonable demo values for the selected profile. This only changes the local simulator datastore.",
         )
 
     # ── port refresh ──────────────────────────────────────────────────────
@@ -382,6 +461,176 @@ class SlaveSimulatorTab(QWidget):
         self._set_status("Datastore cleared.")
         self._refresh_table()
 
+    def generate_demo_meter_values(self) -> None:
+        profile_id = self.register_profile_combo.currentData()
+        if profile_id is None:
+            self._set_status("Select a register profile before generating demo values.")
+            return
+        profile = self._register_profiles.get(str(profile_id))
+        if profile is None:
+            self._set_status(f"Register profile {profile_id} is not available.")
+            return
+
+        variation_percent = (
+            float(self.variation_percent_spin.value())
+            if bool(self.random_variation_combo.currentData())
+            else 0.0
+        )
+        result = build_demo_register_values(
+            profile,
+            variation_percent=variation_percent,
+            rng=self._demo_rng,
+        )
+        if result.generated_count == 0:
+            self._set_status("No known meter-like registers generated.")
+            return
+
+        for (bank_name, address), raw_value in result.values.items():
+            if bank_name == "Holding Registers":
+                self._datastore.write_holding_register(address, raw_value)
+            elif bank_name == "Input Registers":
+                self._datastore.write_input_register(address, raw_value)
+            else:
+                self._set_status(f"Unsupported demo bank {bank_name}.")
+                return
+
+        self._refresh_table()
+        self._set_status(
+            f"Generated {result.generated_count} demo meter registers for {profile.profile_id} with {variation_percent:.0f}% variation."
+        )
+
+    def _update_demo_timer_state(self) -> None:
+        enabled = bool(self.auto_refresh_demo_combo.currentData())
+        if not enabled:
+            self._stop_demo_timer()
+            return
+        if self._demo_timer is None:
+            self._demo_timer = QTimer(self)
+            self._demo_timer.timeout.connect(self.generate_demo_meter_values)
+        self._demo_timer.setInterval(self.demo_update_interval_spin.value() * 1000)
+        self._demo_timer.start()
+        self._set_status("Auto refresh demo values enabled.")
+
+    def _update_demo_timer_interval(self) -> None:
+        if self._demo_timer is not None:
+            self._demo_timer.setInterval(self.demo_update_interval_spin.value() * 1000)
+
+    def _stop_demo_timer(self) -> None:
+        if self._demo_timer is None:
+            return
+        self._demo_timer.stop()
+
+    def _reload_profile_selectors(self) -> None:
+        ensure_runtime_dirs()
+        self._device_profiles, _ = load_all_device_profiles(user_device_profiles_dir())
+        self._register_profiles = {
+            profile_id: load_builtin_profile(profile_id)
+            for profile_id in list_builtin_profiles()
+        }
+
+        self.device_profile_combo.blockSignals(True)
+        current_device = self.device_profile_combo.currentData()
+        self.device_profile_combo.clear()
+        self.device_profile_combo.addItem("None / Generic raw datastore", None)
+        for profile in self._device_profiles:
+            register_profile_id = self._device_profile_register_profile_id(profile)
+            if not register_profile_id:
+                continue
+            self.device_profile_combo.addItem(
+                f"{profile.name} ({profile.device_type})",
+                profile.device_id,
+            )
+        if current_device is not None:
+            idx = self.device_profile_combo.findData(current_device)
+            if idx >= 0:
+                self.device_profile_combo.setCurrentIndex(idx)
+        self.device_profile_combo.blockSignals(False)
+
+        self.register_profile_combo.blockSignals(True)
+        current_register = self.register_profile_combo.currentData()
+        self.register_profile_combo.clear()
+        self.register_profile_combo.addItem("None / Raw datastore", None)
+        for profile_id, profile in sorted(self._register_profiles.items()):
+            self.register_profile_combo.addItem(profile.name, profile_id)
+        if current_register is not None:
+            idx = self.register_profile_combo.findData(current_register)
+            if idx >= 0:
+                self.register_profile_combo.setCurrentIndex(idx)
+        self.register_profile_combo.blockSignals(False)
+
+    def _on_device_profile_changed(self) -> None:
+        device_id = self.device_profile_combo.currentData()
+        if device_id is None:
+            return
+        profile = self._find_device_profile(str(device_id))
+        if profile is None:
+            return
+        register_profile_id = self._device_profile_register_profile_id(profile)
+        if register_profile_id is None:
+            self._set_status(f"Device profile {profile.device_id} has no linked slave register profile.")
+            return
+        index = self.register_profile_combo.findData(register_profile_id)
+        if index >= 0:
+            self.register_profile_combo.setCurrentIndex(index)
+        self._load_known_registers(register_profile_id)
+
+    def _on_register_profile_changed(self) -> None:
+        profile_id = self.register_profile_combo.currentData()
+        if profile_id is None:
+            self.known_registers_table.setRowCount(0)
+            return
+        self._load_known_registers(str(profile_id))
+
+    def _load_selected_known_registers(self) -> None:
+        profile_id = self.register_profile_combo.currentData()
+        if profile_id is None:
+            self.known_registers_table.setRowCount(0)
+            self._set_status("Using generic raw datastore without a reference profile.")
+            return
+        self._load_known_registers(str(profile_id))
+
+    def _load_known_registers(self, profile_id: str) -> None:
+        profile = self._register_profiles.get(profile_id)
+        if profile is None:
+            self.known_registers_table.setRowCount(0)
+            self._set_status(f"Register profile {profile_id} is not available.")
+            return
+        populate_register_preview_table(self.known_registers_table, profile)
+        self._set_status(f"Simulating with register profile {profile.profile_id}.")
+
+    def _apply_selected_known_register(self) -> None:
+        selected = selected_register_from_table(self.known_registers_table)
+        if selected is None:
+            return
+        bank_index = self.bank_combo.findData(selected["bank"])
+        if bank_index >= 0:
+            self.bank_combo.setCurrentIndex(bank_index)
+        self.edit_address.setValue(int(selected["address"]))
+        self.view_offset.setValue(int(selected["address"]))
+        self.view_count.setValue(max(int(selected["quantity"]), 1))
+        self._refresh_table()
+        self._set_status(
+            f"Selected known register {selected['variable']} at address {selected['address']}."
+        )
+
+    def _find_device_profile(self, device_id: str):
+        for profile in self._device_profiles:
+            if profile.device_id == device_id:
+                return profile
+        return None
+
+    @staticmethod
+    def _device_profile_register_profile_id(profile) -> str | None:
+        for role_link in profile.roles:
+            if (
+                role_link.enabled
+                and role_link.role == "slave"
+                and role_link.profile_type == "register_profile"
+                and role_link.profile_id
+            ):
+                return role_link.profile_id
+        return None
+
     # ── worker signals ────────────────────────────────────────────────────
 
     @Slot(object)
@@ -436,6 +685,10 @@ class SlaveSimulatorTab(QWidget):
 
     def _set_status(self, message: str) -> None:
         self.status_label.setText(message)
+
+    def closeEvent(self, event) -> None:
+        self._stop_demo_timer()
+        super().closeEvent(event)
 
     # ── datastore editor ──────────────────────────────────────────────────
 
