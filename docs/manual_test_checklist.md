@@ -37,9 +37,26 @@ Use this checklist to validate the beta GUI on Windows.
 - [ ] Passive Sniffer Diagnostic starts and stops.
 - [ ] Passive Sniffer does not transmit.
 - [ ] Passive Sniffer exposes Poll interval, UI update interval, and Fingerprint interval controls.
+- [ ] Passive Sniffer exposes `Record to file`, output folder, and base name controls.
+- [ ] `Record to file` defaults to `captures\`.
 - [ ] Pause Display pauses visual refresh while capture keeps running.
+- [ ] Pause Display does not stop the recorder when `Record to file` is enabled.
 - [ ] Resume Display restores visual refresh without reopening the port.
 - [ ] Passive Sniffer exports captures to CSV and JSONL.
+- [ ] Stop closes the recorder and leaves capture files on disk.
+
+## Capture Viewer
+
+- [ ] Capture Viewer tab opens.
+- [ ] Capture Viewer loads events JSONL from `captures\`.
+- [ ] Capture Viewer loads CSV exports.
+- [ ] Selecting a row updates Selected Raw Hex.
+- [ ] Decode Selected Frame decodes offline without opening ports.
+- [ ] Copy Raw Hex works.
+- [ ] Export AI Bundle JSON creates a local JSON file.
+- [ ] Add Selected Frame To Diagnostic Report works when a session is active.
+- [ ] Capture Viewer shows `No active diagnostic session.` when no session exists.
+- [ ] Capture Viewer never opens ports and never transmits.
 
 ## Slave Simulator
 

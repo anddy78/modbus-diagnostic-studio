@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
 
 from modbus_diagnostic_studio.gui.help import attach_help_menu
 from modbus_diagnostic_studio.gui.tabs.advanced_master_tab import AdvancedMasterTab
+from modbus_diagnostic_studio.gui.tabs.capture_viewer_tab import CaptureViewerTab
 from modbus_diagnostic_studio.gui.tabs.connection_tab import ConnectionTab
 from modbus_diagnostic_studio.gui.tabs.decoder_tab import DecoderTab
 from modbus_diagnostic_studio.gui.tabs.diagnostic_report_tab import DiagnosticReportTab
@@ -44,6 +45,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(AdvancedMasterTab(self.app_state), "Advanced Master")
         self.tabs.addTab(SlaveSimulatorTab(self.app_state), "Slave Simulator")
         self.tabs.addTab(SnifferDiagnosticTab(self.app_state), "Sniffer Diagnostic")
+        self.tabs.addTab(CaptureViewerTab(self.app_state), "Capture Viewer")
         self.tabs.addTab(DecoderTab(), "Raw Frame Decoder")
         self.tabs.addTab(MasterReadTab(self.app_state), "Basic Master")
         self.tabs.addTab(ProfileManagerTab(), "Profile Manager")

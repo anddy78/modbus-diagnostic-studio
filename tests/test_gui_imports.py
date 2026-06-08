@@ -12,6 +12,7 @@ def test_gui_imports() -> None:
     from modbus_diagnostic_studio.gui.main_window import MainWindow
     from modbus_diagnostic_studio.gui.tabs import (
         AdvancedMasterTab,
+        CaptureViewerTab,
         ConnectionTab,
         DecoderTab,
         DiagnosticReportTab,
@@ -27,6 +28,7 @@ def test_gui_imports() -> None:
     assert callable(run_app)
     assert MainWindow.__name__ == "MainWindow"
     assert AdvancedMasterTab.__name__ == "AdvancedMasterTab"
+    assert CaptureViewerTab.__name__ == "CaptureViewerTab"
     assert ConnectionTab.__name__ == "ConnectionTab"
     assert DecoderTab.__name__ == "DecoderTab"
     assert DiagnosticReportTab.__name__ == "DiagnosticReportTab"
@@ -65,6 +67,7 @@ def test_main_window_theme_references_exist() -> None:
         "Advanced Master",
         "Slave Simulator",
         "Sniffer Diagnostic",
+        "Capture Viewer",
         "Raw Frame Decoder",
         "Basic Master",
         "Profile Manager",
@@ -80,6 +83,7 @@ def test_tab_intro_status_labels_match_current_ux_copy() -> None:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
     from modbus_diagnostic_studio.gui.tabs.advanced_master_tab import AdvancedMasterTab
+    from modbus_diagnostic_studio.gui.tabs.capture_viewer_tab import CaptureViewerTab
     from modbus_diagnostic_studio.gui.tabs.decoder_tab import DecoderTab
     from modbus_diagnostic_studio.gui.tabs.diagnostic_report_tab import DiagnosticReportTab
     from modbus_diagnostic_studio.gui.tabs.master_read_tab import MasterReadTab
@@ -96,6 +100,9 @@ def test_tab_intro_status_labels_match_current_ux_copy() -> None:
     )
     assert AdvancedMasterTab().status_label.text().startswith(
         "Advanced reads, decoding, logging, and guarded writes."
+    )
+    assert CaptureViewerTab().status_label.text().startswith(
+        "Offline capture viewer"
     )
     assert DecoderTab().status_label.text() == "Offline decoder for pasted RTU frames."
     assert ProfileManagerTab().status_label.text().startswith(

@@ -40,6 +40,8 @@ The theme selector will support `System`, `Light` and `Dark` modes.
 - `Sniffer Diagnostic`: passive bus diagnostics that never transmit
   - separate poll interval, UI update interval, and fingerprint interval controls
   - display pause/resume without stopping capture
+  - optional continuous capture recorder to `captures\` for longer passive sessions
+- `Capture Viewer`: open offline JSONL/CSV captures, decode selected frames, export AI-ready bundles, and add evidence to Diagnostic Report
 - `Raw Frame Decoder`: offline decoder for pasted RTU frames
 - `Basic Master`: simple one-shot Modbus reads
 - `Profile Manager`: manage device/register profile metadata
@@ -139,6 +141,14 @@ Scenario loading only restores controls and selected profiles. It does not open 
 - It can save/load session JSON and export CSV/HTML reports.
 - This tab does not open serial ports and does not transmit.
 - Automatic cross-tab evidence capture is incremental; v1 already accepts manual notes and can receive lightweight entries from `Advanced Master`.
+
+### Continuous sniffer capture and offline review
+
+- `Sniffer Diagnostic` still supports manual in-memory export, but `Record to file` is intended for 30-second or multi-minute passive captures without losing older events from bounded GUI buffers.
+- Continuous recorder output is written locally under `captures\` as JSONL files plus a small manifest.
+- `Capture Viewer` opens those offline JSONL files, or the existing CSV exports, without opening ports or transmitting.
+- From `Capture Viewer` you can decode one selected frame, copy raw hex, add a decoded finding to an active `Diagnostic Report` session, or export an offline `AI Bundle` JSON.
+- `AI Bundle` export only writes a local file; review sensitive capture contents before sharing it externally.
 
 ### Where files go
 

@@ -26,7 +26,7 @@ Core principles:
 - `transports/`: active serial/TCP wrappers. These are used by active master/slave workflows, not by passive sniffer diagnostics.
 - `master/`: active Modbus master operations.
 - `slave/`: active simulator/slave operations.
-- `sniffer/`: passive RTU capture, frame reconstruction, request/response matching, diagnostics and capture output.
+- `sniffer/`: passive RTU capture, frame reconstruction, request/response matching, diagnostics, continuous capture recording and offline capture readers.
 - `services/`: application state, event bus, diagnostic sessions and report export helpers.
 - `gui/`: PySide6 user interface only. GUI must call services/core modules and must not implement protocol logic directly.
 
@@ -67,6 +67,16 @@ The sniffer diagnostic core should detect:
 - polling frequency
 - incomplete frames
 - possible serial configuration mismatch inferred from noise, CRC rate or framing error patterns
+
+Passive capture evidence should support two offline paths:
+- bounded in-memory export for short ad-hoc investigations
+- continuous JSONL capture-to-disk for longer sessions without depending on GUI buffer depth
+
+Offline capture review belongs in the GUI/service layer:
+- `Capture Viewer` opens local JSONL/CSV exports
+- selected frames can be decoded with the same raw decoder used elsewhere
+- decoded evidence can be added to `Diagnostic Report`
+- AI-ready bundle export is local-file only and must not send data anywhere
 
 The diagnostic engine should produce preliminary conclusions:
 - Communication OK.

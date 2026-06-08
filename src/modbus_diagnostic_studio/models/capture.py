@@ -44,3 +44,20 @@ class MatchedExchange:
     latency_ms: float | None
     status: str
     note: str = ""
+
+
+@dataclass(frozen=True)
+class CaptureFileMetadata:
+    """Small metadata block stored alongside offline capture files."""
+
+    capture_id: str
+    started_at: str
+    app_version: str
+    port: str
+    baudrate: int
+    parity: str
+    stopbits: float
+    bytesize: int
+    profile_id: str = ""
+    stopped_at: str | None = None
+    notes: str = ""

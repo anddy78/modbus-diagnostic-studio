@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QFileDialog,
@@ -14,6 +17,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -29,6 +33,11 @@ from modbus_diagnostic_studio.models.communication_profile import CommunicationP
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
 from modbus_diagnostic_studio.services.application_state import ApplicationState
 from modbus_diagnostic_studio.services.mode_manager import AppMode
+from modbus_diagnostic_studio.services.paths import captures_dir, ensure_runtime_dirs
+from modbus_diagnostic_studio.sniffer.capture_recorder import (
+    ContinuousCaptureRecorder,
+    ContinuousCaptureRecorderConfig,
+)
 from modbus_diagnostic_studio.sniffer.capture_writer import (
     write_events_csv,
     write_events_jsonl,
@@ -191,6 +200,7 @@ class SnifferDiagnosticTab(QWidget):
         self._last_metrics = SnifferWorkerMetrics(0, 0, 0)
         self._app_state = app_state or ApplicationState()
         self._mode_manager = self._app_state.mode_manager
+        self._recorder: ContinuousCaptureRecorder | None = None
 
         self.banner_label = QLabel("PASSIVE SNIFFER - DOES NOT TRANSMIT")
         banner_font = self.banner_label.font()
@@ -239,6 +249,19 @@ class SnifferDiagnosticTab(QWidget):
         self.profile_combo.addItem("Auto / All built-ins", "__all__")
         for profile_id in list_builtin_communication_profiles():
             self.profile_combo.addItem(profile_id, profile_id)
+
+        ensure_runtime_dirs()
+        self.record_to_file_checkbox = QCheckBox("Record to file")
+        self.record_to_file_checkbox.stateChanged.connect(self._handle_record_toggle_changed)
+        self.output_folder_edit = QLineEdit(str(captures_dir()))
+        self.browse_output_folder_button = QPushButton("Browse")
+        self.browse_output_folder_button.clicked.connect(self.browse_output_folder)
+        self.open_captures_folder_button = QPushButton("Open Captures Folder")
+        self.open_captures_folder_button.clicked.connect(self.open_captures_folder)
+        self.base_name_edit = QLineEdit("modbus_capture")
+        self.recording_label = QLabel("No")
+        self.records_written_label = QLabel("0")
+        self.capture_files_label = QLabel("-")
 
         self.start_button = QPushButton("Start Passive Sniffer")
         self.start_button.clicked.connect(self.start_sniffer)
@@ -329,6 +352,13 @@ class SnifferDiagnosticTab(QWidget):
         form.addRow("UI update interval", self.ui_update_interval_spin)
         form.addRow("Fingerprint interval", self.fingerprint_interval_spin)
         form.addRow("Communication profile", self.profile_combo)
+        form.addRow("Record to file", self.record_to_file_checkbox)
+        output_row = QHBoxLayout()
+        output_row.addWidget(self.output_folder_edit)
+        output_row.addWidget(self.browse_output_folder_button)
+        output_row.addWidget(self.open_captures_folder_button)
+        form.addRow("Output folder", output_row)
+        form.addRow("Base name", self.base_name_edit)
 
         button_row = QHBoxLayout()
         button_row.addWidget(self.start_button)
@@ -379,6 +409,12 @@ class SnifferDiagnosticTab(QWidget):
         stats.addWidget(self.display_paused_label, 5, 1)
         stats.addWidget(QLabel("Serial errors"), 5, 2)
         stats.addWidget(self.serial_errors_label, 5, 3)
+        stats.addWidget(QLabel("Recording"), 6, 0)
+        stats.addWidget(self.recording_label, 6, 1)
+        stats.addWidget(QLabel("Records written"), 6, 2)
+        stats.addWidget(self.records_written_label, 6, 3)
+        stats.addWidget(QLabel("Capture files"), 7, 0)
+        stats.addWidget(self.capture_files_label, 7, 1, 1, 5)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
@@ -439,6 +475,21 @@ class SnifferDiagnosticTab(QWidget):
             "Pause Display",
             "Pause GUI table and diagnosis refresh while passive capture continues in the background.",
         )
+        set_help(
+            self.record_to_file_checkbox,
+            "Record to file",
+            "Continuously write new passive capture events and exchanges to JSONL files while the sniffer runs.",
+        )
+        set_help(
+            self.output_folder_edit,
+            "Output folder",
+            "Writable folder for continuous capture files. Loading or viewing capture files never opens ports or transmits.",
+        )
+        set_help(
+            self.base_name_edit,
+            "Base name",
+            "Safe base name prefix used for capture files such as modbus_capture_events.jsonl.",
+        )
 
     def refresh_ports(self) -> None:
         """Refresh available COM ports without opening them."""
@@ -490,6 +541,15 @@ class SnifferDiagnosticTab(QWidget):
         self._display_paused = False
         self._update_display_paused_label()
         self._set_running_state(True)
+        self._close_recorder()
+        if self.record_to_file_checkbox.isChecked():
+            try:
+                self._start_recorder(settings)
+            except Exception as exc:
+                self._set_running_state(False)
+                self._release_reserved_port()
+                self._set_error(f"Recorder error: {exc}")
+                return
         self.status_label.setText(
             f"Starting passive sniffer... Read-only mode. UI updates every {self.ui_update_interval_spin.value()} ms."
         )
@@ -517,7 +577,7 @@ class SnifferDiagnosticTab(QWidget):
     def stop_sniffer(self) -> None:
         """Stop passive capture and release the port."""
         if self._worker is None:
-            self._finish_stop("Stopped. Passive sniffer closed.")
+            self._finish_stop(self._stopped_status())
             return
         self.status_label.setText("Stopping passive sniffer...")
         self.stop_requested.emit()
@@ -528,9 +588,12 @@ class SnifferDiagnosticTab(QWidget):
             return
         self._display_paused = True
         self._update_display_paused_label()
-        self.status_label.setText(
-            "Display paused; capture still running. Export uses latest captured snapshot."
-        )
+        status = "Display paused; capture still running."
+        if self._recorder is not None:
+            status += " Recording continues."
+        else:
+            status += " Export uses latest captured snapshot."
+        self.status_label.setText(status)
 
     def resume_display(self) -> None:
         """Resume visual updates using the latest captured snapshot."""
@@ -580,6 +643,9 @@ class SnifferDiagnosticTab(QWidget):
         self.ui_updates_label.setText("0")
         self.serial_errors_label.setText("0")
         self.display_paused_label.setText("No")
+        self.records_written_label.setText("0")
+        self.recording_label.setText("No" if self._recorder is None else "Yes")
+        self.capture_files_label.setText("-")
 
     @Slot(object, object)
     def _handle_snapshot(
@@ -590,10 +656,14 @@ class SnifferDiagnosticTab(QWidget):
         self._last_snapshot = snapshot
         self._last_metrics = metrics
         self._update_metrics(metrics)
+        self._write_snapshot_to_recorder(snapshot)
         if self._display_paused:
-            self.status_label.setText(
-                "Display paused; capture still running. Export uses latest captured snapshot."
-            )
+            status = "Display paused; capture still running."
+            if self._recorder is not None:
+                status += " Recording continues."
+            else:
+                status += " Export uses latest captured snapshot."
+            self.status_label.setText(status)
             return
         self._apply_snapshot_to_view(snapshot)
         self.status_label.setText(
@@ -608,7 +678,7 @@ class SnifferDiagnosticTab(QWidget):
     def _handle_worker_stopped(self) -> None:
         if self._last_snapshot is not None and not self._display_paused:
             self._apply_snapshot_to_view(self._last_snapshot)
-        self._finish_stop("Stopped. Passive sniffer closed.")
+        self._finish_stop(self._stopped_status())
 
     @Slot()
     def _cleanup_worker(self) -> None:
@@ -624,6 +694,7 @@ class SnifferDiagnosticTab(QWidget):
         self._display_paused = False
         self._update_display_paused_label()
         self._release_reserved_port()
+        self._close_recorder()
         self.status_label.setText(status)
 
     def _set_running_state(self, running: bool) -> None:
@@ -647,6 +718,106 @@ class SnifferDiagnosticTab(QWidget):
 
     def _set_error(self, message: str) -> None:
         self.status_label.setText(f"Error: {message}")
+
+    def browse_output_folder(self) -> None:
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Capture Output Folder",
+            self.output_folder_edit.text().strip() or str(captures_dir()),
+        )
+        if path:
+            self.output_folder_edit.setText(path)
+
+    def open_captures_folder(self) -> None:
+        ensure_runtime_dirs()
+        folder = Path(self.output_folder_edit.text().strip() or str(captures_dir()))
+        folder.mkdir(parents=True, exist_ok=True)
+        try:
+            os.startfile(str(folder))
+            self.status_label.setText(f"Opened captures folder: {folder}")
+        except OSError as exc:
+            self.status_label.setText(f"Unable to open captures folder: {exc}")
+
+    def _handle_record_toggle_changed(self) -> None:
+        if self._running:
+            self.record_to_file_checkbox.blockSignals(True)
+            self.record_to_file_checkbox.setChecked(self._recorder is not None)
+            self.record_to_file_checkbox.blockSignals(False)
+            self.status_label.setText("Change recording before starting capture.")
+            return
+        self.recording_label.setText("Yes" if self.record_to_file_checkbox.isChecked() else "No")
+
+    def _start_recorder(self, settings: SerialConnectionSettings) -> None:
+        self._recorder = self._create_recorder(settings)
+        self._recorder.start(self._build_recorder_metadata(settings))
+        self._sync_recorder_labels()
+
+    def _create_recorder(self, settings: SerialConnectionSettings) -> ContinuousCaptureRecorder:
+        del settings
+        return ContinuousCaptureRecorder(
+            ContinuousCaptureRecorderConfig(
+                output_dir=Path(self.output_folder_edit.text().strip() or str(captures_dir())),
+                base_name=self.base_name_edit.text().strip() or "modbus_capture",
+            )
+        )
+
+    def _build_recorder_metadata(self, settings: SerialConnectionSettings) -> dict[str, object]:
+        profile_id = self.profile_combo.currentData()
+        return {
+            "app_version": "0.1.0-beta",
+            "port": settings.port,
+            "baudrate": settings.baudrate,
+            "parity": settings.parity,
+            "stopbits": settings.stopbits,
+            "bytesize": settings.bytesize,
+            "profile_id": "" if profile_id == "__all__" else str(profile_id or ""),
+        }
+
+    def _write_snapshot_to_recorder(self, snapshot: PassiveSnifferSnapshot) -> None:
+        if self._recorder is None:
+            return
+        try:
+            self._recorder.write_snapshot_delta(snapshot)
+            self._sync_recorder_labels()
+        except Exception as exc:
+            self._close_recorder()
+            self.status_label.setText(f"Recorder error: {exc}")
+
+    def _sync_recorder_labels(self) -> None:
+        if self._recorder is None:
+            self.recording_label.setText("No")
+            self.records_written_label.setText("0")
+            self.capture_files_label.setText("-")
+            return
+        self.recording_label.setText("Yes")
+        self.records_written_label.setText(str(self._recorder.records_written))
+        files = []
+        if self._recorder.events_path is not None:
+            files.append(self._recorder.events_path.name)
+        if self._recorder.exchanges_path is not None:
+            files.append(self._recorder.exchanges_path.name)
+        self.capture_files_label.setText(", ".join(files) or "-")
+
+    def _close_recorder(self) -> None:
+        if self._recorder is None:
+            self._sync_recorder_labels()
+            return
+        try:
+            self._recorder.close()
+        finally:
+            self._recorder = None
+            self._sync_recorder_labels()
+
+    def _stopped_status(self) -> str:
+        if self._recorder is not None:
+            paths = []
+            if self._recorder.events_path is not None:
+                paths.append(str(self._recorder.events_path))
+            if self._recorder.exchanges_path is not None:
+                paths.append(str(self._recorder.exchanges_path))
+            if paths:
+                return f"Stopped. Capture saved to: {' | '.join(paths)}"
+        return "Stopped. Passive sniffer closed."
 
     def _release_reserved_port(self) -> None:
         if self._reserved_port is None:
