@@ -17,6 +17,8 @@ from modbus_diagnostic_studio.slave.demo_values import (
     classify_meter_variable,
     encode_demo_value_for_register,
     map_physical_value_for_register,
+    scenario_from_dict,
+    scenario_to_dict,
 )
 
 
@@ -172,3 +174,63 @@ def test_build_demo_register_values_with_fake_profile_and_scenario() -> None:
     assert result.warnings == []
     assert ("Input Registers", 0) in result.values
     assert ("Input Registers", 5) in result.values
+
+
+def test_scenario_to_dict_and_from_dict_roundtrip_manual_phase_powers() -> None:
+    scenario = MeterDemoScenario(
+        mode=MeterScenarioMode.THREE_PHASE_UNBALANCED,
+        active_phase="L2",
+        voltage_ln=220.0,
+        frequency_hz=60.0,
+        total_active_power_w=1750.0,
+        power_factor=0.91,
+        phase_l1_power_w=1000.0,
+        phase_l2_power_w=500.0,
+        phase_l3_power_w=250.0,
+        imbalance_percent=12.5,
+        energy_import_kwh=10.0,
+        energy_export_kwh=1.5,
+        accumulate_energy=True,
+        elapsed_seconds=0.0,
+    )
+
+    restored = scenario_from_dict(scenario_to_dict(scenario))
+
+    assert restored == scenario
+
+
+def test_scenario_from_dict_uses_defaults_for_missing_values() -> None:
+    restored = scenario_from_dict({"mode": MeterScenarioMode.SINGLE_PHASE})
+
+    assert restored.mode == MeterScenarioMode.SINGLE_PHASE
+    assert restored.active_phase == "L1"
+    assert restored.voltage_ln == pytest.approx(230.0)
+    assert restored.elapsed_seconds == pytest.approx(0.0)
+
+
+def test_scenario_from_dict_invalid_values_raise_value_error() -> None:
+    with pytest.raises(ValueError):
+        scenario_from_dict({"mode": "bad_mode"})
+    with pytest.raises(ValueError):
+        scenario_from_dict({"power_factor": 0.0})
+
+
+def test_single_phase_roundtrip() -> None:
+    scenario = MeterDemoScenario(
+        mode=MeterScenarioMode.SINGLE_PHASE,
+        total_active_power_w=1000.0,
+    )
+    restored = scenario_from_dict(scenario_to_dict(scenario))
+    assert restored.mode == MeterScenarioMode.SINGLE_PHASE
+    assert restored.total_active_power_w == pytest.approx(1000.0)
+
+
+def test_three_phase_single_phase_load_roundtrip() -> None:
+    scenario = MeterDemoScenario(
+        mode=MeterScenarioMode.THREE_PHASE_SINGLE_PHASE_LOAD,
+        active_phase="L3",
+        total_active_power_w=2000.0,
+    )
+    restored = scenario_from_dict(scenario_to_dict(scenario))
+    assert restored.mode == MeterScenarioMode.THREE_PHASE_SINGLE_PHASE_LOAD
+    assert restored.active_phase == "L3"

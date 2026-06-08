@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import random
 
-from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, QUrl, Signal, Slot
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QGridLayout,
     QHBoxLayout,
@@ -33,7 +35,10 @@ from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
 from modbus_diagnostic_studio.profiles.loader import list_builtin_profiles, load_builtin_profile
 from modbus_diagnostic_studio.services.application_state import ApplicationState
 from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
-from modbus_diagnostic_studio.services.paths import ensure_runtime_dirs, user_device_profiles_dir
+from modbus_diagnostic_studio.services.paths import (
+    ensure_runtime_dirs,
+    user_device_profiles_dir,
+)
 from modbus_diagnostic_studio.slave.datastore import SlaveDatastore
 from modbus_diagnostic_studio.slave.demo_values import (
     MeterDemoScenario,
@@ -41,6 +46,13 @@ from modbus_diagnostic_studio.slave.demo_values import (
     build_demo_register_values,
 )
 from modbus_diagnostic_studio.slave.rtu_server import RtuSlaveServer, RtuSlaveServerConfig, RtuSlaveServerStats
+from modbus_diagnostic_studio.slave.scenario_store import (
+    SlaveScenarioFile,
+    create_builtin_like_default_scenarios,
+    ensure_slave_scenario_dir,
+    read_slave_scenario,
+    write_slave_scenario,
+)
 from modbus_diagnostic_studio.slave.simulator_engine import ModbusSlaveSimulator
 from modbus_diagnostic_studio.transports.serial_ports import list_serial_ports
 
@@ -240,6 +252,18 @@ class SlaveSimulatorTab(QWidget):
 
         self.accumulate_energy_check = QCheckBox("Accumulate energy")
 
+        self.scenario_name_edit = QLineEdit()
+        self.scenario_description_edit = QLineEdit()
+
+        self.save_scenario_button = QPushButton("Save Scenario")
+        self.save_scenario_button.clicked.connect(self.save_scenario)
+        self.load_scenario_button = QPushButton("Load Scenario")
+        self.load_scenario_button.clicked.connect(self.load_scenario)
+        self.open_scenarios_folder_button = QPushButton("Open Scenarios Folder")
+        self.open_scenarios_folder_button.clicked.connect(self.open_scenarios_folder)
+        self.create_example_scenarios_button = QPushButton("Create Example Scenarios")
+        self.create_example_scenarios_button.clicked.connect(self.create_example_scenarios)
+
         self.generate_demo_values_button = QPushButton("Generate Demo Meter Values")
         self.generate_demo_values_button.clicked.connect(self.generate_demo_meter_values)
         self.random_variation_check = QCheckBox("Random variation")
@@ -393,6 +417,14 @@ class SlaveSimulatorTab(QWidget):
         demo_form.addRow("P L2", self.phase_l2_power_spin)
         demo_form.addRow("P L3", self.phase_l3_power_spin)
         demo_form.addRow(self.accumulate_energy_check)
+        demo_form.addRow("Scenario name", self.scenario_name_edit)
+        demo_form.addRow("Scenario description", self.scenario_description_edit)
+        scenario_buttons = QHBoxLayout()
+        scenario_buttons.addWidget(self.save_scenario_button)
+        scenario_buttons.addWidget(self.load_scenario_button)
+        scenario_buttons.addWidget(self.open_scenarios_folder_button)
+        scenario_buttons.addWidget(self.create_example_scenarios_button)
+        demo_form.addRow("Scenario presets", scenario_buttons)
         demo_form.addRow(self.generate_demo_values_button)
         demo_form.addRow(self.random_variation_check)
         demo_form.addRow("Variation %", self.variation_percent_spin)
@@ -482,6 +514,26 @@ class SlaveSimulatorTab(QWidget):
             "Accumulate energy",
             "When auto refresh is enabled, imported energy increases based on total active power and elapsed time.",
         )
+        set_help(
+            self.scenario_name_edit,
+            "Scenario name",
+            "Friendly preset name stored with the slave simulator scenario JSON file.",
+        )
+        set_help(
+            self.scenario_description_edit,
+            "Scenario description",
+            "Short description to help identify the saved simulator preset later.",
+        )
+        set_help(
+            self.save_scenario_button,
+            "Save Scenario",
+            "Save the current demo scenario controls as a reusable JSON preset without starting the simulator.",
+        )
+        set_help(
+            self.load_scenario_button,
+            "Load Scenario",
+            "Load a saved simulator scenario JSON file into the controls. This does not generate datastore values automatically.",
+        )
 
     # ── port refresh ──────────────────────────────────────────────────────
 
@@ -567,6 +619,65 @@ class SlaveSimulatorTab(QWidget):
 
     def generate_demo_meter_values(self) -> None:
         self._generate_demo_meter_values(elapsed_seconds=0.0)
+
+    def save_scenario(self) -> None:
+        """Save the current demo controls to a scenario JSON file."""
+        ensure_runtime_dirs()
+        base_dir = ensure_slave_scenario_dir()
+        scenario_name = self.scenario_name_edit.text().strip() or "slave_scenario"
+        default_path = base_dir / f"{_slugify_filename(scenario_name)}.json"
+        path_str, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Slave Scenario",
+            str(default_path),
+            "JSON files (*.json)",
+        )
+        if not path_str:
+            return
+        self.save_scenario_to_path(path_str)
+
+    def load_scenario(self) -> None:
+        """Load a scenario JSON file into the current controls."""
+        ensure_runtime_dirs()
+        path_str, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load Slave Scenario",
+            str(ensure_slave_scenario_dir()),
+            "JSON files (*.json)",
+        )
+        if not path_str:
+            return
+        self.load_scenario_from_path(path_str)
+
+    def open_scenarios_folder(self) -> None:
+        """Open the writable slave scenario directory."""
+        folder = ensure_slave_scenario_dir()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+        self._set_status(f"Opened scenarios folder: {folder}")
+
+    def create_example_scenarios(self) -> None:
+        """Create a small set of example scenario presets if none exist."""
+        created = create_builtin_like_default_scenarios()
+        self._set_status(f"Scenario presets available: {len(created)} file(s).")
+
+    def save_scenario_to_path(self, path: str) -> None:
+        """Save the current controls to a concrete scenario path."""
+        scenario_file = self._scenario_file_from_controls(elapsed_seconds=0.0)
+        write_slave_scenario(path, scenario_file)
+        self._set_status(f"Scenario saved to: {path}")
+
+    def load_scenario_from_path(self, path: str) -> None:
+        """Load a concrete scenario path into the controls only."""
+        scenario_file = read_slave_scenario(path)
+        self._stop_demo_timer()
+        self.auto_refresh_demo_check.blockSignals(True)
+        self.auto_refresh_demo_check.setChecked(False)
+        self.auto_refresh_demo_check.blockSignals(False)
+        self._apply_scenario_file_to_controls(scenario_file)
+        self._update_demo_control_state()
+        self._set_status(
+            "Scenario loaded. Press Generate Demo Meter Values to apply to datastore."
+        )
 
     def _generate_demo_meter_values(self, elapsed_seconds: float) -> None:
         profile_id = self.register_profile_combo.currentData()
@@ -659,6 +770,72 @@ class SlaveSimulatorTab(QWidget):
             accumulate_energy=self.accumulate_energy_check.isChecked(),
             elapsed_seconds=elapsed_seconds,
         )
+
+    def _scenario_from_controls(self, elapsed_seconds: float = 0.0) -> MeterDemoScenario:
+        """Return the current GUI scenario model without touching the datastore."""
+        return self._build_demo_scenario(elapsed_seconds)
+
+    def _scenario_file_from_controls(self, elapsed_seconds: float = 0.0) -> SlaveScenarioFile:
+        """Build one persistible scenario file model from current controls."""
+        register_profile_id = self.register_profile_combo.currentData()
+        device_profile_id = self.device_profile_combo.currentData()
+        return SlaveScenarioFile(
+            name=self.scenario_name_edit.text().strip() or "Unnamed Scenario",
+            description=self.scenario_description_edit.text().strip(),
+            register_profile_id="" if register_profile_id is None else str(register_profile_id),
+            device_profile_id="" if device_profile_id is None else str(device_profile_id),
+            scenario=self._scenario_from_controls(elapsed_seconds=elapsed_seconds),
+            random_variation_enabled=self.random_variation_check.isChecked(),
+            variation_percent=float(self.variation_percent_spin.value()),
+            auto_refresh_enabled=self.auto_refresh_demo_check.isChecked(),
+            update_interval_seconds=float(self.demo_update_interval_spin.value()),
+        )
+
+    def _apply_scenario_to_controls(self, scenario: MeterDemoScenario) -> None:
+        """Apply one scenario model to the GUI controls without generating values."""
+        mode_index = self.demo_mode_combo.findData(scenario.mode)
+        if mode_index >= 0:
+            self.demo_mode_combo.setCurrentIndex(mode_index)
+        self.active_phase_combo.setCurrentText(scenario.active_phase)
+        self.voltage_ln_spin.setValue(float(scenario.voltage_ln))
+        self.frequency_spin.setValue(float(scenario.frequency_hz))
+        self.total_active_power_spin.setValue(float(scenario.total_active_power_w))
+        self.power_factor_spin.setValue(float(scenario.power_factor))
+        self.imbalance_percent_spin.setValue(float(scenario.imbalance_percent))
+        manual_mode = any(
+            value is not None
+            for value in (
+                scenario.phase_l1_power_w,
+                scenario.phase_l2_power_w,
+                scenario.phase_l3_power_w,
+            )
+        )
+        self.manual_phase_power_check.setChecked(manual_mode)
+        self.phase_l1_power_spin.setValue(float(scenario.phase_l1_power_w or 0.0))
+        self.phase_l2_power_spin.setValue(float(scenario.phase_l2_power_w or 0.0))
+        self.phase_l3_power_spin.setValue(float(scenario.phase_l3_power_w or 0.0))
+        self.accumulate_energy_check.setChecked(scenario.accumulate_energy)
+        self._demo_energy_import_kwh = float(scenario.energy_import_kwh)
+        self._demo_energy_export_kwh = float(scenario.energy_export_kwh)
+        self._update_demo_control_state()
+
+    def _apply_scenario_file_to_controls(self, scenario_file: SlaveScenarioFile) -> None:
+        """Apply a stored scenario preset to the GUI controls only."""
+        self.scenario_name_edit.setText(scenario_file.name)
+        self.scenario_description_edit.setText(scenario_file.description)
+        self._apply_scenario_to_controls(scenario_file.scenario)
+        self.random_variation_check.setChecked(scenario_file.random_variation_enabled)
+        self.variation_percent_spin.setValue(int(round(scenario_file.variation_percent)))
+        self.demo_update_interval_spin.setValue(max(int(round(scenario_file.update_interval_seconds)), 1))
+
+        if scenario_file.device_profile_id:
+            device_index = self.device_profile_combo.findData(scenario_file.device_profile_id)
+            if device_index >= 0:
+                self.device_profile_combo.setCurrentIndex(device_index)
+        if scenario_file.register_profile_id:
+            register_index = self.register_profile_combo.findData(scenario_file.register_profile_id)
+            if register_index >= 0:
+                self.register_profile_combo.setCurrentIndex(register_index)
 
     def _update_demo_control_state(self) -> None:
         mode = str(self.demo_mode_combo.currentData())
@@ -921,3 +1098,9 @@ class SlaveSimulatorTab(QWidget):
             self.register_table.setItem(
                 i, 3, QTableWidgetItem("True" if v else "False") if is_bit_bank else QTableWidgetItem("")
             )
+
+
+def _slugify_filename(value: str) -> str:
+    parts = "".join(ch if ch.isalnum() else "_" for ch in value.strip().lower()).split("_")
+    cleaned = "_".join(part for part in parts if part)
+    return cleaned or "slave_scenario"

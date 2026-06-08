@@ -82,3 +82,13 @@ Typical simulator examples:
 - `SDM630` or `DTSU666` with `Three phase meter / single-phase load` to simulate a three-phase meter where only one phase carries load
 
 These scenarios only assist the local simulator datastore. They do not automatically start the slave server or trigger any external Modbus traffic.
+
+The `Slave Simulator` can now also save and load reusable scenario presets under `scenarios\slave\`.
+Typical presets include:
+- `SDM230` single-phase around 1 kW
+- `SDM630` balanced three-phase around 5 kW
+- `SDM630` with single-phase load on `L1`
+- low-voltage / low-power-factor diagnostics
+
+Loading a scenario only restores GUI controls and related profile selections when available.
+It does not transmit, does not start the simulator server, and does not write new datastore values until `Generate Demo Meter Values` is pressed.

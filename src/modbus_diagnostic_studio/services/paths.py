@@ -43,6 +43,10 @@ def user_device_profiles_dir() -> Path:
     return app_base_dir() / "device_profiles" / "user"
 
 
+def slave_scenarios_dir() -> Path:
+    return app_base_dir() / "scenarios" / "slave"
+
+
 def ensure_runtime_dirs() -> None:
     """Create the writable runtime directories if needed."""
     for path in (
@@ -52,5 +56,6 @@ def ensure_runtime_dirs() -> None:
         exports_dir(),
         user_profiles_dir(),
         user_device_profiles_dir(),
+        slave_scenarios_dir(),
     ):
         path.mkdir(parents=True, exist_ok=True)

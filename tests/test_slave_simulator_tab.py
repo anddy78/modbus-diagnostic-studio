@@ -12,6 +12,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 
 from modbus_diagnostic_studio.core.endian import registers_to_float32
+from modbus_diagnostic_studio.slave.demo_values import MeterDemoScenario, MeterScenarioMode
+from modbus_diagnostic_studio.slave.scenario_store import SlaveScenarioFile
 from modbus_diagnostic_studio.gui.tabs.slave_simulator_tab import SlaveSimulatorTab
 
 
@@ -168,3 +170,86 @@ def test_auto_refresh_timer_can_toggle_without_port(monkeypatch, tmp_path: Path)
 
     assert widget._demo_timer is not None
     assert widget._demo_timer.isActive() is False
+
+
+def test_scenario_from_controls_returns_expected_model(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("MDS_BASE_DIR", str(tmp_path))
+    app = QApplication.instance() or QApplication([])
+
+    widget = SlaveSimulatorTab()
+    widget.demo_mode_combo.setCurrentIndex(widget.demo_mode_combo.findData(MeterScenarioMode.SINGLE_PHASE))
+    widget.voltage_ln_spin.setValue(220.0)
+    widget.frequency_spin.setValue(60.0)
+    widget.total_active_power_spin.setValue(1000.0)
+    widget.power_factor_spin.setValue(0.95)
+
+    scenario = widget._scenario_from_controls()
+
+    assert app is not None
+    assert scenario.mode == MeterScenarioMode.SINGLE_PHASE
+    assert scenario.voltage_ln == pytest.approx(220.0)
+    assert scenario.frequency_hz == pytest.approx(60.0)
+    assert scenario.total_active_power_w == pytest.approx(1000.0)
+    assert scenario.power_factor == pytest.approx(0.95)
+
+
+def test_apply_scenario_to_controls_restores_values(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("MDS_BASE_DIR", str(tmp_path))
+    app = QApplication.instance() or QApplication([])
+
+    widget = SlaveSimulatorTab()
+    scenario_file = SlaveScenarioFile(
+        name="L1 load",
+        description="Three-phase with load on L1",
+        register_profile_id="chint_dtsu71",
+        scenario=MeterDemoScenario(
+            mode=MeterScenarioMode.THREE_PHASE_SINGLE_PHASE_LOAD,
+            active_phase="L1",
+            total_active_power_w=2000.0,
+        ),
+        random_variation_enabled=True,
+        variation_percent=3.0,
+        auto_refresh_enabled=True,
+        update_interval_seconds=5.0,
+    )
+
+    widget._apply_scenario_file_to_controls(scenario_file)
+
+    assert app is not None
+    assert widget.scenario_name_edit.text() == "L1 load"
+    assert widget.scenario_description_edit.text() == "Three-phase with load on L1"
+    assert widget.demo_mode_combo.currentData() == MeterScenarioMode.THREE_PHASE_SINGLE_PHASE_LOAD
+    assert widget.active_phase_combo.currentText() == "L1"
+    assert widget.total_active_power_spin.value() == pytest.approx(2000.0)
+    assert widget.random_variation_check.isChecked() is True
+    assert widget.demo_update_interval_spin.value() == 5
+
+
+def test_save_and_load_scenario_helpers_do_not_generate_values(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("MDS_BASE_DIR", str(tmp_path))
+    app = QApplication.instance() or QApplication([])
+
+    widget = SlaveSimulatorTab()
+    widget.register_profile_combo.setCurrentIndex(widget.register_profile_combo.findData("generic_meter"))
+    widget.scenario_name_edit.setText("Saved single phase")
+    widget.demo_mode_combo.setCurrentIndex(widget.demo_mode_combo.findData(MeterScenarioMode.SINGLE_PHASE))
+    widget.total_active_power_spin.setValue(1234.0)
+    widget.random_variation_check.setChecked(True)
+    widget.variation_percent_spin.setValue(4)
+    widget.auto_refresh_demo_check.setChecked(True)
+
+    path = tmp_path / "saved_scenario.json"
+    widget.save_scenario_to_path(str(path))
+
+    widget.total_active_power_spin.setValue(9999.0)
+    widget.random_variation_check.setChecked(False)
+    widget._datastore.write_holding_register(0, 123)
+    widget.load_scenario_from_path(str(path))
+
+    assert app is not None
+    assert path.exists()
+    assert widget.total_active_power_spin.value() == pytest.approx(1234.0)
+    assert widget.random_variation_check.isChecked() is True
+    assert widget.auto_refresh_demo_check.isChecked() is False
+    assert widget._datastore.read_holding_registers(0, 1)[0] == 123
+    assert "Scenario loaded. Press Generate Demo Meter Values to apply to datastore." in widget.status_label.text()

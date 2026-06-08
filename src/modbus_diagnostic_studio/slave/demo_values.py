@@ -60,6 +60,25 @@ class MeterDemoScenario:
         }:
             raise ValueError(f"Unsupported meter scenario mode: {self.mode}")
 
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-compatible dictionary for this scenario."""
+        return {
+            "mode": self.mode,
+            "active_phase": self.active_phase,
+            "voltage_ln": self.voltage_ln,
+            "frequency_hz": self.frequency_hz,
+            "total_active_power_w": self.total_active_power_w,
+            "power_factor": self.power_factor,
+            "phase_l1_power_w": self.phase_l1_power_w,
+            "phase_l2_power_w": self.phase_l2_power_w,
+            "phase_l3_power_w": self.phase_l3_power_w,
+            "imbalance_percent": self.imbalance_percent,
+            "energy_import_kwh": self.energy_import_kwh,
+            "energy_export_kwh": self.energy_export_kwh,
+            "accumulate_energy": self.accumulate_energy,
+            "elapsed_seconds": self.elapsed_seconds,
+        }
+
 
 @dataclass(frozen=True)
 class PhaseElectricalValues:
@@ -98,6 +117,34 @@ class DemoValueBuildResult:
     generated_count: int
     skipped_count: int
     warnings: list[str] = field(default_factory=list)
+
+
+def scenario_to_dict(scenario: MeterDemoScenario) -> dict[str, Any]:
+    """Convert a scenario to a JSON-compatible dictionary."""
+    scenario.validate()
+    return scenario.to_dict()
+
+
+def scenario_from_dict(data: dict[str, Any]) -> MeterDemoScenario:
+    """Build and validate a MeterDemoScenario from JSON-compatible data."""
+    scenario = MeterDemoScenario(
+        mode=str(data.get("mode", MeterScenarioMode.THREE_PHASE_BALANCED)),
+        active_phase=str(data.get("active_phase", "L1")),
+        voltage_ln=float(data.get("voltage_ln", 230.0)),
+        frequency_hz=float(data.get("frequency_hz", 50.0)),
+        total_active_power_w=float(data.get("total_active_power_w", 3000.0)),
+        power_factor=float(data.get("power_factor", 0.98)),
+        phase_l1_power_w=_optional_float(data.get("phase_l1_power_w")),
+        phase_l2_power_w=_optional_float(data.get("phase_l2_power_w")),
+        phase_l3_power_w=_optional_float(data.get("phase_l3_power_w")),
+        imbalance_percent=float(data.get("imbalance_percent", 10.0)),
+        energy_import_kwh=float(data.get("energy_import_kwh", 1234.5)),
+        energy_export_kwh=float(data.get("energy_export_kwh", 0.0)),
+        accumulate_energy=bool(data.get("accumulate_energy", False)),
+        elapsed_seconds=float(data.get("elapsed_seconds", 0.0)),
+    )
+    scenario.validate()
+    return scenario
 
 
 def classify_meter_variable(
@@ -439,3 +486,9 @@ def _split_u32(value: int, word_order: str) -> list[int]:
     if word_order == "swap":
         return [registers[1], registers[0]]
     return registers
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    return float(value)
