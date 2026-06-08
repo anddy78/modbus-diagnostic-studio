@@ -21,6 +21,10 @@ from PySide6.QtWidgets import (
 )
 
 from modbus_diagnostic_studio.gui.help import set_help
+from modbus_diagnostic_studio.gui.profile_views import (
+    populate_register_preview_table,
+    selected_register_from_table,
+)
 from modbus_diagnostic_studio.master.client import ModbusMasterClient
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
 from modbus_diagnostic_studio.profiles.decoder import (
@@ -154,6 +158,18 @@ class MasterReadTab(QWidget):
         self.profile_combo.addItem("None / Raw only", None)
         for profile_id in list_builtin_profiles():
             self.profile_combo.addItem(profile_id, profile_id)
+        self.profile_combo.currentIndexChanged.connect(self._on_profile_changed)
+
+        self.known_registers_table = QTableWidget(0, 9)
+        self.known_registers_table.setHorizontalHeaderLabels(
+            ["Variable", "Address", "Function", "Bank", "Type", "Quantity", "Unit", "Scale", "Description"]
+        )
+        self.known_registers_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.known_registers_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.known_registers_table.setMinimumHeight(220)
+        self.known_registers_table.itemSelectionChanged.connect(
+            self._apply_selected_known_register
+        )
 
         self.read_button = QPushButton("Read")
         self.read_button.clicked.connect(self.read_once)
@@ -195,6 +211,8 @@ class MasterReadTab(QWidget):
         content_layout.addWidget(self.status_label)
         content_layout.addLayout(form)
         content_layout.addWidget(self.read_button)
+        content_layout.addWidget(QLabel("Known registers"))
+        content_layout.addWidget(self.known_registers_table)
         content_layout.addWidget(QLabel("Raw registers"))
         content_layout.addWidget(self.raw_table)
         content_layout.addWidget(QLabel("Profile decoded values"))
@@ -223,6 +241,11 @@ class MasterReadTab(QWidget):
             self.quantity,
             "Quantity",
             "Number of registers to read from the selected start address.",
+        )
+        set_help(
+            self.known_registers_table,
+            "Known registers",
+            "Profile-guided register list. Selecting a row updates function, address, and quantity, but does not send a request.",
         )
 
     def refresh_ports(self) -> None:
@@ -347,6 +370,30 @@ class MasterReadTab(QWidget):
         self.decoded_table.setItem(row, 2, QTableWidgetItem(value.unit or ""))
         self.decoded_table.setItem(row, 3, QTableWidgetItem(str(value.address)))
         self.decoded_table.setItem(row, 4, QTableWidgetItem(value.description))
+
+    def _on_profile_changed(self) -> None:
+        profile_id = self.profile_combo.currentData()
+        if profile_id is None:
+            self.known_registers_table.setRowCount(0)
+            return
+        profile = load_builtin_profile(str(profile_id))
+        populate_register_preview_table(self.known_registers_table, profile)
+        self.status_label.setText(
+            f"Selected profile {profile.profile_id}. Choose a known register to prefill the read fields."
+        )
+
+    def _apply_selected_known_register(self) -> None:
+        selected = selected_register_from_table(self.known_registers_table)
+        if selected is None:
+            return
+        function_index = self.function.findData(int(selected["function_code"]))
+        if function_index >= 0:
+            self.function.setCurrentIndex(function_index)
+        self.address.setValue(int(selected["address"]))
+        self.quantity.setValue(int(selected["quantity"]))
+        self.status_label.setText(
+            f"Selected known register {selected['variable']}. Press Read to query."
+        )
 
 
 def _friendly_serial_error(message: str) -> str:

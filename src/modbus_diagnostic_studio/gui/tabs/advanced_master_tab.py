@@ -28,6 +28,11 @@ from PySide6.QtWidgets import (
 )
 
 from modbus_diagnostic_studio.gui.help import set_help
+from modbus_diagnostic_studio.gui.profile_views import (
+    decode_format_for_register_type,
+    populate_register_preview_table,
+    selected_register_from_table,
+)
 from modbus_diagnostic_studio.master.client import ModbusMasterClient
 from modbus_diagnostic_studio.master.operation_log import (
     MAX_LOG_ENTRIES,
@@ -36,6 +41,7 @@ from modbus_diagnostic_studio.master.operation_log import (
     write_log_jsonl,
 )
 from modbus_diagnostic_studio.models.connection import SerialConnectionSettings
+from modbus_diagnostic_studio.profiles.loader import list_builtin_profiles, load_builtin_profile
 from modbus_diagnostic_studio.services.application_state import ApplicationState
 from modbus_diagnostic_studio.services.mode_manager import AppMode, ModeManager
 from modbus_diagnostic_studio.transports.rtu_transport import RtuTransport
@@ -408,6 +414,23 @@ class AdvancedMasterTab(QWidget):
         for fmt in DECODE_FORMATS:
             self.decode_format.addItem(fmt, fmt)
 
+        self.profile_combo = QComboBox()
+        self.profile_combo.addItem("None / Raw only", None)
+        for profile_id in list_builtin_profiles():
+            self.profile_combo.addItem(profile_id, profile_id)
+        self.profile_combo.currentIndexChanged.connect(self._on_profile_changed)
+
+        self.known_registers_table = QTableWidget(0, 7)
+        self.known_registers_table.setHorizontalHeaderLabels(
+            ["Variable", "Address", "Function", "Type", "Quantity", "Unit", "Description"]
+        )
+        self.known_registers_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.known_registers_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.known_registers_table.setMinimumHeight(220)
+        self.known_registers_table.itemSelectionChanged.connect(
+            self._apply_selected_known_register
+        )
+
         # ── counters / meta labels ────────────────────────────────────────
         self.cycles_label = QLabel("Cycles: 0")
         self.errors_label = QLabel("Errors: 0")
@@ -533,6 +556,7 @@ class AdvancedMasterTab(QWidget):
         form.addRow("Quantity", self.quantity)
         form.addRow("Poll interval (continuous)", self.poll_interval)
         form.addRow("Decode format", self.decode_format)
+        form.addRow("Register profile", self.profile_combo)
 
         btn_row = QHBoxLayout()
         btn_row.addWidget(self.read_once_button)
@@ -582,6 +606,8 @@ class AdvancedMasterTab(QWidget):
         content_layout.addLayout(form)
         content_layout.addLayout(btn_row)
         content_layout.addLayout(meta_row)
+        content_layout.addWidget(QLabel("Known registers"))
+        content_layout.addWidget(self.known_registers_table)
         content_layout.addWidget(QLabel("Registers / Bits"))
         content_layout.addWidget(self.registers_table)
         content_layout.addWidget(write_group)
@@ -615,6 +641,11 @@ class AdvancedMasterTab(QWidget):
             self.decode_format,
             "Decode format",
             "Display raw registers as integer, float, hex, binary, or float32 word-swap.",
+        )
+        set_help(
+            self.known_registers_table,
+            "Known registers",
+            "Profile-guided known registers. Selecting one updates read function, address, quantity, and decode format, but does not send a request.",
         )
         set_help(
             self.write_enable_check,
@@ -657,6 +688,55 @@ class AdvancedMasterTab(QWidget):
             if self.quantity.value() > 125:
                 self.quantity.setValue(125)
             self.decode_format.setEnabled(True)
+
+    def _on_profile_changed(self) -> None:
+        profile_id = self.profile_combo.currentData()
+        if profile_id is None:
+            self.known_registers_table.setRowCount(0)
+            return
+        profile = load_builtin_profile(str(profile_id))
+        populate_register_preview_table(
+            self.known_registers_table,
+            profile,
+            include_function=True,
+            include_bank=False,
+        )
+        self.status_label.setText(
+            f"Selected profile {profile.profile_id}. Choose a known register to prefill the read fields."
+        )
+
+    def _apply_selected_known_register(self) -> None:
+        selected = selected_register_from_table(self.known_registers_table)
+        if selected is None:
+            return
+        function_index = self.function_combo.findData(int(selected["function_code"]))
+        if function_index >= 0:
+            self.function_combo.setCurrentIndex(function_index)
+        self.start_address.setValue(int(selected["address"]))
+        self.quantity.setValue(int(selected["quantity"]))
+
+        profile_id = self.profile_combo.currentData()
+        note = ""
+        if profile_id is not None:
+            profile = load_builtin_profile(str(profile_id))
+            decode_value = decode_format_for_register_type(str(selected["type"]))
+            if selected["type"] == "float32" and getattr(profile, "word_order", "normal") == "swap":
+                decode_index = self.decode_format.findData("float32 word-swap")
+                if decode_index >= 0:
+                    self.decode_format.setCurrentIndex(decode_index)
+                else:
+                    decode_index = self.decode_format.findData(decode_value)
+                    if decode_index >= 0:
+                        self.decode_format.setCurrentIndex(decode_index)
+                    note = " Word-swap hint was not available, using float32."
+            else:
+                decode_index = self.decode_format.findData(decode_value)
+                if decode_index >= 0:
+                    self.decode_format.setCurrentIndex(decode_index)
+
+        self.status_label.setText(
+            f"Selected known register {selected['variable']}. Press Read Once to query.{note}"
+        )
 
     # ── read once ─────────────────────────────────────────────────────────
 

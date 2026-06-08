@@ -25,7 +25,10 @@ def test_profile_manager_tab_builds_and_lists_builtins(monkeypatch, tmp_path: Pa
     assert widget.device_profiles_table.rowCount() >= 3
     assert widget.register_profiles_table.rowCount() >= 1
     assert widget.register_profiles_table.horizontalHeaderItem(4).text() == "Description"
-    assert widget.register_preview_table.horizontalHeaderItem(5).text() == "Description"
+    assert widget.register_preview_table.horizontalHeaderItem(2).text() == "Function"
+    assert widget.register_preview_table.horizontalHeaderItem(3).text() == "Bank"
+    assert widget.register_preview_table.horizontalHeaderItem(5).text() == "Quantity"
+    assert widget.register_preview_table.horizontalHeaderItem(8).text() == "Description"
 
 
 def test_profile_manager_import_device_profile_file(monkeypatch, tmp_path: Path) -> None:
@@ -84,6 +87,10 @@ def test_select_register_profile_loads_register_preview(monkeypatch, tmp_path: P
     assert widget.register_preview_table.rowCount() > 0
     assert "chint_dtsu71" in widget.register_preview_status_label.text()
     assert widget.register_profiles_table.currentRow() >= 0
+    assert widget.register_preview_table.horizontalHeaderItem(2).text() == "Function"
+    assert widget.register_preview_table.horizontalHeaderItem(3).text() == "Bank"
+    assert widget.register_preview_table.horizontalHeaderItem(5).text() == "Quantity"
+    assert widget.register_preview_table.horizontalHeaderItem(8).text() == "Description"
 
 
 def test_role_linked_to_register_profile_can_load_preview(monkeypatch, tmp_path: Path) -> None:

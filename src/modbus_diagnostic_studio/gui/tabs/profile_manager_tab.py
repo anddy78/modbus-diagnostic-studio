@@ -29,6 +29,7 @@ from modbus_diagnostic_studio.device_profiles.validator import (
     validate_role_links,
 )
 from modbus_diagnostic_studio.gui.help import set_help
+from modbus_diagnostic_studio.gui.profile_views import populate_register_preview_table
 from modbus_diagnostic_studio.profiles.loader import list_builtin_profiles, load_builtin_profile
 from modbus_diagnostic_studio.services.paths import (
     ensure_runtime_dirs,
@@ -104,13 +105,15 @@ class ProfileManagerTab(QWidget):
         self.register_preview_status_label = QLabel(
             "Select a register profile to preview its registers."
         )
-        self.register_preview_table = QTableWidget(0, 6)
+        self.register_preview_table = QTableWidget(0, 9)
         self.register_preview_table.setHorizontalHeaderLabels(
-            ["Variable", "Address", "Type", "Unit", "Scale", "Description"]
+            ["Variable", "Address", "Function", "Bank", "Type", "Quantity", "Unit", "Scale", "Description"]
         )
-        self.register_preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.register_preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.register_preview_table.horizontalHeader().setStretchLastSection(True)
         self.register_preview_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.register_preview_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.register_preview_table.setMinimumHeight(260)
 
         self._build_layout()
         self._attach_help()
@@ -459,36 +462,14 @@ class ProfileManagerTab(QWidget):
             )
             return
 
-        self.register_preview_table.setRowCount(len(profile.registers))
-        for row, register in enumerate(profile.registers):
-            description = register.description or ""
-            tooltip = (
-                f"Variable: {register.variable}\n"
-                f"Address: {register.address}\n"
-                f"Type: {register.type}\n"
-                f"Unit: {register.unit or '-'}\n"
-                f"Scale: {register.scale}\n"
-                f"Description: {description or '-'}"
-            )
-            self._set_table_item(self.register_preview_table, row, 0, register.variable, tooltip)
-            self._set_table_item(
-                self.register_preview_table, row, 1, str(register.address), tooltip
-            )
-            self._set_table_item(self.register_preview_table, row, 2, register.type, tooltip)
-            self._set_table_item(
-                self.register_preview_table, row, 3, register.unit or "", tooltip
-            )
-            self._set_table_item(
-                self.register_preview_table, row, 4, str(register.scale), tooltip
-            )
-            self._set_table_item(self.register_preview_table, row, 5, description, tooltip)
-
-        self.register_preview_status_label.setText(
-            f"Selected register profile {profile.profile_id}: {len(profile.registers)} registers."
-        )
-        self.status_label.setText(
-            f"Selected register profile {profile.profile_id}: {len(profile.registers)} registers."
-        )
+        populate_register_preview_table(self.register_preview_table, profile)
+        count = len(profile.registers)
+        if count == 0:
+            message = f"Selected register profile {profile.profile_id}: 0 registers."
+        else:
+            message = f"Selected register profile {profile.profile_id}: {count} registers."
+        self.register_preview_status_label.setText(message)
+        self.status_label.setText(message)
 
     def _clear_register_preview(
         self,
